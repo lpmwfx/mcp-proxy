@@ -1,0 +1,15 @@
+[package]
+name = "mcp-proxy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio      = { version = "1", features = ["full"] }
+notify     = "6"
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap       = { version = "4", features = ["derive"] }
+
+[build-dependencies]
+rulestools-scanner = { git = "https://github.com/lpmwfx/RulesTools" }
+rulestools-documenter = { git = "https://github.com/lpmwfx/RulesTools" }

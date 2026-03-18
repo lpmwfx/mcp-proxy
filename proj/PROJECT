@@ -1,0 +1,50 @@
+# PROJECT: mcp-proxy
+
+## Goal
+
+Tokio-baseret stdio-proxy der holder en persistent MCP-forbindelse mod Claude
+og spawner/respawner den underliggende Rust-applikation ved binary-ændringer eller crash.
+Sender `notifications/tools/list_changed` upstream efter respawn så Claude re-fetcher tools.
+Proxyen er ~150 linjer, ingen forretningslogik — kun relay og livscyklus-management.
+
+## Stack
+
+- Language: Rust 2024
+- Runtime: tokio (async, full features)
+- File watching: notify 6
+- Serialization: serde + serde_json (kun til list_changed payload)
+- CLI args: clap 4
+- Type: CLI (single-crate, MCP stdio proxy)
+
+## Structure
+
+- src/main.rs: Entry point — tokio runtime, clap args
+- src/adapter/: _adp hub — coordinates all layers
+- src/core/: _core — supervisor, watcher, respawn logic
+- src/gateway/: _gtw — IO: process spawn, file watch, stdio relay
+- src/pal/: _pal — platform abstraction
+- src/shared/: _x — errors, results, shared traits
+- doc/: arkitekturdokumentation
+- proj/: projekt-tracking
+
+## Method
+
+- Workflow: PROJECT → PHASES → TODO → code → test → DONE
+- Testing: cargo test
+
+## Patterns
+
+- Proxy er JSON-agnostisk — relay'er bytes, konstruerer kun `list_changed`
+- Alle tokio tasks kommunikerer via `tokio::sync::mpsc` channels
+- Supervisor er eneste owner af `tokio::process::Child` handle
+- Graceful respawn: SIGTERM → timeout → SIGKILL → spawn ny → await initialized → list_changed
+
+## Current
+
+- phase: 1
+- id: setup
+- status: development
+
+## History
+
+(None yet.)

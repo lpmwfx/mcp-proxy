@@ -1,0 +1,10 @@
+# RULES — mcp-proxy
+
+## Active Rules
+
+### Global
+- `get_rule("global/file-limits.md")` — file size limits
+- `get_rule("global/nesting.md")` — max nesting depth
+
+### Rust
+- `get_context(["rust"])` — all Rust rules

@@ -1,0 +1,9 @@
+# TODO — mcp-proxy
+
+## Phase: 1 (setup)
+
+- [x] Define Goal in proj/PROJECT
+- [x] Define phases in proj/PHASES
+- [ ] Opdater Cargo.toml med dependencies (tokio, notify, serde, serde_json)
+- [ ] Verify build: `cargo build`
+- [ ] Verify scan: `rulestools scan .`

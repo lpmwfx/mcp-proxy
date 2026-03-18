@@ -1,0 +1,7 @@
+[project]
+kind = "cli"
+topology = "flat"
+
+[scan]
+languages = ["rust"]
+deny = false

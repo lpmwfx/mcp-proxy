@@ -1,0 +1,58 @@
+# PHASES: mcp-proxy
+
+## Active
+
+- phase: 1
+  id: setup
+  title: "Project setup"
+  milestone: "Project scaffolded, builds, scans clean"
+  delivers:
+    - Project structure
+    - Build configuration (tokio, notify, serde)
+    - Scanner integration
+  status: active
+
+## Planned
+
+- phase: 2
+  id: proxy-core
+  title: "Stdio relay + supervisor"
+  milestone: "Proxy relay'er stdin/stdout mellem Claude og downstream process"
+  delivers:
+    - proxy_upstream_to_downstream task
+    - proxy_downstream_to_upstream task
+    - supervisor task (spawn/respawn downstream)
+    - CLI arg parsing (binary path + args)
+  status: planned
+
+- phase: 3
+  id: watcher
+  title: "Binary file watcher"
+  milestone: "Proxy detekterer binary-ændring og trigger respawn"
+  delivers:
+    - watcher task (notify crate, Modify events)
+    - mpsc channel watcher → supervisor
+    - Graceful respawn sekvens (SIGTERM → timeout → SIGKILL)
+  status: planned
+
+- phase: 4
+  id: list-changed
+  title: "list_changed notification"
+  milestone: "Claude re-fetcher tools automatisk efter respawn"
+  delivers:
+    - notifier task
+    - list_changed JSON payload upstream efter respawn
+    - Await downstream initialized før notify
+  status: planned
+
+- phase: 5
+  id: polish
+  title: "Fejlhåndtering og polish"
+  milestone: "Produktionsklar proxy"
+  delivers:
+    - Logging (tracing)
+    - Crash-recovery edge cases
+    - Timeout-konfiguration
+  status: planned
+
+# --- DONES ---
