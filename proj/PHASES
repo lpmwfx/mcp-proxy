@@ -2,18 +2,6 @@
 
 ## Active
 
-- phase: 1
-  id: setup
-  title: "Project setup"
-  milestone: "Project scaffolded, builds, scans clean"
-  delivers:
-    - Project structure
-    - Build configuration (tokio, notify, serde)
-    - Scanner integration
-  status: active
-
-## Planned
-
 - phase: 2
   id: proxy-core
   title: "Stdio relay + supervisor"
@@ -23,7 +11,21 @@
     - proxy_downstream_to_upstream task
     - supervisor task (spawn/respawn downstream)
     - CLI arg parsing (binary path + args)
-  status: planned
+  status: active
+
+## Planned
+
+# --- DONES ---
+
+- phase: 1
+  id: setup
+  title: "Project setup"
+  milestone: "Project scaffolded, builds, scans clean"
+  delivers:
+    - Project structure
+    - Build configuration (tokio, notify, serde)
+    - Scanner integration
+  status: done
 
 - phase: 3
   id: watcher

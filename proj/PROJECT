@@ -2,10 +2,108 @@
 
 ## Goal
 
-Tokio-baseret stdio-proxy der holder en persistent MCP-forbindelse mod Claude
-og spawner/respawner den underliggende Rust-applikation ved binary-ændringer eller crash.
-Sender `notifications/tools/list_changed` upstream efter respawn så Claude re-fetcher tools.
-Proxyen er ~150 linjer, ingen forretningslogik — kun relay og livscyklus-management.
+MCP-servere registreret i Claude Desktop/Code spawnes som child-processes.
+Når den underliggende Rust-binary ændrer sig (ny build, ny tool-liste), skal
+Claude genstarte for at opdage ændringerne — selv hvis MCP-wrapperen stadig kører.
+Dette er et per-server livscyklus-problem.
+
+mcp-proxy er en tynd Tokio-baseret stdio-proxy der:
+1. Holder den permanente stdio-forbindelse mod Claude (upstream)
+2. Spawner og watch'er den interne Rust-binary (downstream)
+3. Genstarter downstream ved binary-ændring eller crash
+4. Sender `notifications/tools/list_changed` upstream efter genstart
+
+Claude ser aldrig en disconnect. `list_changed` trigger en stille tool-refresh.
+
+## Architecture
+
+```
+Claude Code
+    │  stdio (persistent)
+    ▼
+[mcp-proxy]          ← Tokio async runtime
+    │  stdio (respawnable)
+    ▼
+[din-rust-app]       ← den faktiske MCP-implementering
+```
+
+Fremtidig multi-app vision:
+```
+                         ┌─── [app-a]  (unix socket)
+Claude --stdio--> [tokio]┤─── [app-b]  (unix socket)
+                         └─── [app-c]  (unix socket)
+```
+
+Rust-appene behøver ikke kende til MCP. De eksponerer en simpel IPC-kontrakt:
+```
+← list_tools()     → [{ name, description, schema }]
+← call_tool(name)  → result
+```
+
+Tokio-laget ejer al MCP-protokol-kompleksitet. Appene er rene.
+
+## Components
+
+| Komponent | Ansvar |
+|---|---|
+| `proxy` task | Relay stdin → downstream, downstream stdout → upstream |
+| `watcher` task | `notify` crate — watch binary path for `Modify` events |
+| `supervisor` task | Spawn/respawn downstream process via `tokio::process::Command` |
+| `notifier` task | Send `notifications/tools/list_changed` til upstream efter respawn |
+
+### Tokio task-graf
+
+```
+main
+├── proxy_upstream_to_downstream   (tokio::spawn)
+├── proxy_downstream_to_upstream   (tokio::spawn)
+├── watcher                        (tokio::spawn)
+└── supervisor                     ← koordinator
+        ↑ channel fra watcher (binary changed / process died)
+        ↓ channel til notifier (respawn done)
+```
+
+Alle tasks kommunikerer via `tokio::sync::mpsc` channels.
+Supervisor holder `tokio::process::Child` handle og er eneste owner.
+
+## Graceful respawn-sekvens
+
+```
+1. watcher detekterer binary Modify event
+2. → mpsc signal til supervisor
+3. supervisor: terminate downstream child (platform-specific)
+4. supervisor: await child exit (timeout → force kill)
+5. supervisor: spawn ny child
+6. supervisor: await downstream "initialized" svar
+7. supervisor: signal notifier
+8. notifier: skriv list_changed til upstream stdout
+```
+
+## list_changed payload
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/tools/list_changed"
+}
+```
+
+Sendes upstream via stdout umiddelbart efter downstream er oppe og har svaret på `initialize`.
+
+## Konfiguration i Claude
+
+```json
+{
+  "mcpServers": {
+    "min-server": {
+      "command": "/path/to/mcp-proxy",
+      "args": ["/path/to/min-rust-app"]
+    }
+  }
+}
+```
+
+Proxyen tager binary-stien som første argument. Øvrige args videresendes til downstream.
 
 ## Stack
 
@@ -22,9 +120,9 @@ Proxyen er ~150 linjer, ingen forretningslogik — kun relay og livscyklus-manag
 - src/adapter/: _adp hub — coordinates all layers
 - src/core/: _core — supervisor, watcher, respawn logic
 - src/gateway/: _gtw — IO: process spawn, file watch, stdio relay
-- src/pal/: _pal — platform abstraction
+- src/pal/: _pal — platform abstraction (process termination)
 - src/shared/: _x — errors, results, shared traits
-- doc/: arkitekturdokumentation
+- doc/: arkitekturdokumentation (kilde)
 - proj/: projekt-tracking
 
 ## Method
@@ -37,14 +135,28 @@ Proxyen er ~150 linjer, ingen forretningslogik — kun relay og livscyklus-manag
 - Proxy er JSON-agnostisk — relay'er bytes, konstruerer kun `list_changed`
 - Alle tokio tasks kommunikerer via `tokio::sync::mpsc` channels
 - Supervisor er eneste owner af `tokio::process::Child` handle
-- Graceful respawn: SIGTERM → timeout → SIGKILL → spawn ny → await initialized → list_changed
+- Graceful respawn: terminate → timeout → force kill → spawn ny → await initialized → list_changed
+- Ingen tung MCP-SDK — proxyen er ~150 linjer, ingen forretningslogik
+
+## Scope
+
+- Løser hot-reload af enkelt-servers ved code/binary ændringer
+- Løser IKKE add/remove af servere til Claude uden restart af Claude selv
+- Bevidst minimalt
+
+## Fremtidigt
+
+- Unix socket transport som alternativ til stdio-relay (bedre for debugging)
+- Health-check ping til downstream for crash-detection uden file-watch
+- Shared proxy-binary der konfigureres via argument (samme binary, mange servers)
+- Multi-app: apps registrerer sig hos proxyen ved opstart (service mesh i miniformat)
 
 ## Current
 
-- phase: 1
-- id: setup
+- phase: 2
+- id: proxy-core
 - status: development
 
 ## History
 
-(None yet.)
+- phase 1 (setup): Project scaffolded, builds clean

@@ -13,11 +13,21 @@ struct Cli {
     binary: std::path::PathBuf,
 
     /// Arguments to pass to the downstream binary
-    #[arg(trailing_var_arg = true)]
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     args: Vec<String>,
 }
 
-fn main() {
-    let _cli = Cli::parse();
-    println!("mcp-proxy ready");
+#[tokio::main]
+async fn main() {
+    let cli = Cli::parse();
+
+    eprintln!("mcp-proxy: spawning {:?}", cli.binary);
+
+    match adapter::ProxyAdapter_adp::new(cli.binary, cli.args).run().await {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("mcp-proxy: fatal: {e}");
+            std::process::exit(1);
+        }
+    }
 }

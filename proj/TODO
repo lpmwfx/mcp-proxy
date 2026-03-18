@@ -1,9 +1,25 @@
 # TODO — mcp-proxy
 
+## Phase: 2 (proxy-core)
+
+- [ ] shared/_x: ProxyEvent_x enum (BinaryChanged, ProcessDied, RespawnDone)
+- [ ] shared/_x: ProxyError_x error type
+- [ ] pal/_pal: ProcessPal_pal trait (terminate, force_kill)
+- [ ] pal/_pal: Windows impl af ProcessPal_pal
+- [ ] gateway/_gtw: ProcessGateway_gtw — spawn downstream, stdio pipes
+- [ ] gateway/_gtw: RelayGateway_gtw — upstream↔downstream byte relay
+- [ ] gateway/_gtw: WatcherGateway_gtw — notify binary Modify events
+- [ ] core/_core: SupervisorCore_core — respawn-sekvens logic
+- [ ] adapter/_adp: ProxyAdapter_adp — wire supervisor + gateway + channels
+- [ ] main.rs: tokio runtime, clap args → adapter
+- [ ] Verify build: `cargo build`
+- [ ] Test: spawn echo-server som downstream, verify relay
+
+# --- DONES ---
+
 ## Phase: 1 (setup)
 
 - [x] Define Goal in proj/PROJECT
 - [x] Define phases in proj/PHASES
-- [ ] Opdater Cargo.toml med dependencies (tokio, notify, serde, serde_json)
-- [ ] Verify build: `cargo build`
-- [ ] Verify scan: `rulestools scan .`
+- [x] Opdater Cargo.toml med dependencies (tokio, notify, serde, serde_json)
+- [x] Verify build: `cargo build`
