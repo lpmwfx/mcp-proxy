@@ -1,1 +1,5 @@
-# No issues found
+# 3 issues
+
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\adapter\mod.rs:25:1: warning rust/errors/no-expect: expect() in non-test code — use ? or return a typed error [rust/errors.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\adapter\mod.rs:26:1: warning rust/errors/no-expect: expect() in non-test code — use ? or return a typed error [rust/errors.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\adapter\mod.rs:33:1: warning rust/naming/no-noise-names: 'result' is a banned bare name — add a domain suffix [rust/naming.md]

@@ -4,3 +4,11 @@
 *~
 .DS_Store
 Thumbs.db
+
+# Local settings
+.claude/settings.local.json
+
+# Test artifacts
+relay_stderr.txt
+tests/*.exe
+tests/*.pdb
