@@ -72,6 +72,17 @@ Updated 2026-03-19 to include mcp-proxy under "D:/REPO/RUSTPROJECTS/MCP/mcp-prox
 
 ## CRITICAL: System-Wide vs Project-Level MCP Configuration
 
+### HOTFIX (CORRECTED 2026-03-19 13:35)
+
+**MISTAKE:** mcp-proxy was installed as project-local (Local MCPs) instead of system-wide (User MCPs).
+- Result: Other users couldn't see any MCPs
+- All MCPs disappeared from system
+
+**CORRECT SETUP:**
+- **User MCPs (system):** mcp-proxy.exe ONLY
+- **Project Local MCPs:** (empty)
+- All other AIs on system see mcp-proxy and route through it
+
 ### The Problem (FIXED 2026-03-19)
 
 Claude Code supports TWO levels of MCP configuration:
