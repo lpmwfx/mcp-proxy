@@ -190,7 +190,60 @@ Proxy will:
 3. Abort file watcher
 4. Send `list_changed` notification
 
-### 5. Monitoring
+### 5. Installing New MCP Servers
+
+**IMPORTANT:** New MCP servers are installed through **proxy**, not by editing Claude Code config.
+
+#### Option A: Static Installation (Config File)
+
+Edit `mcp-servers.json` and add your server:
+
+```json
+{
+  "servers": [
+    {"id": "gui-mcp", "binary": "..."},
+    {"id": "rules", "binary": "..."},
+    {
+      "id": "my-new-server",
+      "binary": "/path/to/my-new-server.exe",
+      "args": []
+    }
+  ]
+}
+```
+
+Restart proxy → server loads automatically.
+
+#### Option B: Dynamic Installation (Runtime)
+
+Call `mcp/load` to add server without restart:
+
+```json
+{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+  "name": "mcp/load",
+  "arguments": {
+    "id": "my-new-server",
+    "binary": "/path/to/my-new-server.exe",
+    "args": []
+  }
+}}
+```
+
+Proxy spawns server instantly → tools available immediately.
+
+#### What NOT to Do
+
+❌ **Don't edit `~/.claude.json` User MCPs** to add new servers
+❌ **Don't add them to Claude Code config directly**
+❌ **Don't create separate MCP connections**
+
+All servers go through mcp-proxy for:
+- Unified crash recovery
+- Global timeout enforcement
+- Graceful shutdown
+- Error reporting (Issues MCP)
+
+### 6. Monitoring
 
 Check `mcp-proxy.log` for:
 - Server startup/shutdown
