@@ -1,8 +1,8 @@
 {
   "servers": [
     {
-      "id": "test-server",
-      "binary": "./test-server.exe",
+      "id": "gui-mcp",
+      "binary": "C:/Users/mathi/bin/gui-mcp.exe",
       "args": []
     }
   ]
