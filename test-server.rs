@@ -12,6 +12,11 @@ fn main() {
                 continue;
             }
 
+            // Check if this is a notification (no id) — ignore it
+            if !line.contains("\"id\":") {
+                continue;
+            }
+
             // Parse method and id from JSON string (simple string matching)
             let method = if line.contains("\"method\":\"initialize\"") {
                 "initialize"
