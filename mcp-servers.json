@@ -1,0 +1,9 @@
+{
+  "servers": [
+    {
+      "id": "test-server",
+      "binary": "./test-server.exe",
+      "args": []
+    }
+  ]
+}
