@@ -1,10 +1,12 @@
 //! Server lifecycle — spawn, initialize, shutdown downstream servers.
 
 use std::path::Path;
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::mpsc;
 
 use crate::gateway::ProcessGateway_gtw;
-use crate::shared::{DownstreamServer_x, ProxyError_x, ProxyResult_x, INIT_TIMEOUT_DEFAULT_SECS};
+use crate::shared::{DownstreamServer_x, ProxyError_x, ProxyEvent_x, ProxyResult_x, INIT_TIMEOUT_DEFAULT_SECS};
 
 /// struct `DownstreamLifecycle_core` — lifecycle management for downstream servers.
 pub struct DownstreamLifecycle_core;
@@ -16,6 +18,7 @@ impl DownstreamLifecycle_core {
         binary: &Path,
         args: &[String],
         init_timeout_secs: u64,
+        event_tx: mpsc::Sender<ProxyEvent_x>,
     ) -> ProxyResult_x<DownstreamServer_x> {
         // 1. Spawn the downstream process
         let mut child = ProcessGateway_gtw::spawn_downstream(binary, args)?;
@@ -118,15 +121,46 @@ impl DownstreamLifecycle_core {
             }
         }
 
+        // Spawn crash monitor task
+        let (kill_tx, mut kill_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_id_monitor = id.to_string();
+        let event_tx_monitor = event_tx.clone();
+
+        let monitor_handle = tokio::spawn(async move {
+            let mut child = child;
+            loop {
+                tokio::select! {
+                    _ = &mut kill_rx => {
+                        let _ = child.kill().await;
+                        let _ = child.wait().await;
+                        break;
+                    }
+                    _ = tokio::time::sleep(Duration::from_millis(500)) => {
+                        match child.try_wait() {
+                            Ok(Some(_)) => {
+                                let _ = event_tx_monitor.send(ProxyEvent_x::ProcessDied(server_id_monitor.clone())).await;
+                                break;
+                            }
+                            Ok(None) => {}
+                            Err(_) => break,
+                        }
+                    }
+                }
+            }
+        });
+
         let server = DownstreamServer_x {
             id: id.to_string(),
             binary: binary.to_path_buf(),
             args: args.to_vec(),
-            child,
             stdin,
             stdout,
             tools,
             next_id: 3,
+            crash_count: 0,
+            kill_tx: Some(kill_tx),
+            monitor_handle: Some(monitor_handle),
+            watcher_handle: None,
         };
 
         Ok(server)
@@ -134,17 +168,28 @@ impl DownstreamLifecycle_core {
 
     /// fn `shutdown` — gracefully shuts down a server.
     pub async fn shutdown(mut server: DownstreamServer_x) {
-        let _ = server.child.kill().await;
-        let _ = server.child.wait().await;
+        drop(server.stdin);  // Send EOF to server
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        if let Some(tx) = server.kill_tx.take() {
+            let _ = tx.send(());
+        }
+        if let Some(h) = server.monitor_handle.take() {
+            h.abort();
+        }
+        if let Some(h) = server.watcher_handle.take() {
+            h.abort();
+        }
+
+        tracing::info!(server = %server.id, "server shutdown complete");
     }
 
     /// fn `restart` — kills and respawns a server, collects tools.
-    pub async fn restart(mut old_server: DownstreamServer_x, init_timeout_secs: u64) -> ProxyResult_x<DownstreamServer_x> {
-        // Kill old server
-        let _ = old_server.child.kill().await;
-        let _ = old_server.child.wait().await;
-
-        // Respawn with same config
-        Self::spawn_and_initialize(&old_server.id, &old_server.binary, &old_server.args, init_timeout_secs).await
+    pub async fn restart(old_server: DownstreamServer_x, init_timeout_secs: u64, event_tx: mpsc::Sender<ProxyEvent_x>) -> ProxyResult_x<DownstreamServer_x> {
+        let id = old_server.id.clone();
+        let binary = old_server.binary.clone();
+        let args = old_server.args.clone();
+        Self::shutdown(old_server).await;
+        Self::spawn_and_initialize(&id, &binary, &args, init_timeout_secs, event_tx).await
     }
 }

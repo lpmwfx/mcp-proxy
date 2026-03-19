@@ -190,6 +190,7 @@ impl DownstreamGateway_gtw {
         server: &mut DownstreamServer_x,
         method: &str,
         params: Option<Value>,
+        tool_call_timeout_secs: u64,
     ) -> ProxyResult_x<JsonRpcResponse_x> {
         let id = server.next_id;
         server.next_id += 1;
@@ -206,11 +207,13 @@ impl DownstreamGateway_gtw {
         server.stdin.write_all(b"\n").await.map_err(ProxyError_x::RelayBroken)?;
         server.stdin.flush().await.map_err(ProxyError_x::RelayBroken)?;
 
-        // Read response
-        let line = server
-            .stdout
-            .next_line()
+        // Read response with timeout
+        let line = tokio::time::timeout(
+            std::time::Duration::from_secs(tool_call_timeout_secs),
+            server.stdout.next_line(),
+        )
             .await
+            .map_err(|_| ProxyError_x::DownstreamEof(server.id.clone()))?
             .map_err(|_| ProxyError_x::DownstreamEof(server.id.clone()))?;
 
         match line {

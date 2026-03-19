@@ -5,6 +5,7 @@ pub mod handlers;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
@@ -64,16 +65,17 @@ impl ProxyAdapter_adp {
                         tracing::info!(count = num_servers, "loading servers from config");
                         for server_cfg in config.servers {
                             let binary = Path::new(&server_cfg.binary);
-                            match DownstreamLifecycle_core::spawn_and_initialize(&server_cfg.id, binary, &server_cfg.args, self.init_timeout_secs).await {
-                                Ok(server) => {
+                            match DownstreamLifecycle_core::spawn_and_initialize(&server_cfg.id, binary, &server_cfg.args, self.init_timeout_secs, self.event_tx.clone()).await {
+                                Ok(mut server) => {
                                     let id = server.id.clone();
-                                    // Spawn watcher for this server
+                                    // Spawn watcher and store handle
+                                    let binary_path = server.binary.clone();
+                                    let sid = server.id.clone();
                                     let tx = self.event_tx.clone();
-                                    let server_id = id.clone();
-                                    let binary_path = binary.to_path_buf();
-                                    tokio::spawn(async move {
-                                        WatcherGateway_gtw::watch_binary(server_id, &binary_path, tx).await;
+                                    let handle = tokio::spawn(async move {
+                                        WatcherGateway_gtw::watch_binary(sid, &binary_path, tx).await;
                                     });
+                                    server.watcher_handle = Some(handle);
                                     self.registry.insert(server);
                                     tracing::info!(server = %id, "server loaded and initialized");
                                 }
@@ -125,8 +127,16 @@ impl ProxyAdapter_adp {
                             tracing::info!(server = %server_id, "binary modified, restarting server");
                             // Auto-restart the server
                             if let Some(old_server) = self.registry.remove(&server_id) {
-                                match DownstreamLifecycle_core::restart(old_server, self.init_timeout_secs).await {
-                                    Ok(new_server) => {
+                                match DownstreamLifecycle_core::restart(old_server, self.init_timeout_secs, self.event_tx.clone()).await {
+                                    Ok(mut new_server) => {
+                                        // Respawn watcher
+                                        let binary_path = new_server.binary.clone();
+                                        let sid = new_server.id.clone();
+                                        let tx = self.event_tx.clone();
+                                        let handle = tokio::spawn(async move {
+                                            WatcherGateway_gtw::watch_binary(sid, &binary_path, tx).await;
+                                        });
+                                        new_server.watcher_handle = Some(handle);
                                         self.registry.insert(new_server);
                                         // Send list_changed notification
                                         let _ = self.upstream
@@ -140,24 +150,65 @@ impl ProxyAdapter_adp {
                                 }
                             }
                         }
+
                         Some(ProxyEvent_x::ProcessDied(server_id)) => {
                             tracing::warn!(server = %server_id, "downstream process died unexpectedly");
+                            if let Some(server) = self.registry.remove(&server_id) {
+                                let _ = self.upstream.send_notification(McpServer_core::tools_list_changed_notification()).await;
+
+                                let crash_count = server.crash_count + 1;
+                                let backoff = Duration::from_secs(2u64.pow(crash_count.min(4)));
+                                let tx = self.event_tx.clone();
+                                let binary = server.binary.clone();
+                                let args = server.args.clone();
+                                let id = server_id.clone();
+                                let init_timeout = self.init_timeout_secs;
+
+                                tokio::spawn(async move {
+                                    tokio::time::sleep(backoff).await;
+                                    match DownstreamLifecycle_core::spawn_and_initialize(
+                                        &id, &binary, &args, init_timeout, tx.clone()
+                                    ).await {
+                                        Ok(mut new_server) => {
+                                            new_server.crash_count = crash_count;
+                                            // Spawn watcher
+                                            let binary_path = new_server.binary.clone();
+                                            let sid = new_server.id.clone();
+                                            let wtx = tx.clone();
+                                            let whandle = tokio::spawn(async move {
+                                                WatcherGateway_gtw::watch_binary(sid, &binary_path, wtx).await;
+                                            });
+                                            new_server.watcher_handle = Some(whandle);
+                                            let _ = tx.send(ProxyEvent_x::RespawnDone(id, Box::new(new_server))).await;
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(server = %id, error = %e, "crash recovery respawn failed");
+                                        }
+                                    }
+                                });
+                            }
                         }
-                        Some(ProxyEvent_x::RespawnDone(server_id)) => {
-                            tracing::info!(server = %server_id, "server respawn completed");
+
+                        Some(ProxyEvent_x::RespawnDone(server_id, new_server)) => {
+                            self.registry.insert(*new_server);
+                            let _ = self.upstream.send_notification(McpServer_core::tools_list_changed_notification()).await;
+                            tracing::info!(server = %server_id, "server respawned successfully");
                         }
+
                         None => break, // Channel closed
                     }
+                }
+
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("shutdown signal received, stopping");
+                    break;
                 }
             }
         }
 
         // Cleanup: shutdown all servers
-        let server_ids: Vec<_> = self.registry.server_list().iter().map(|(id, _)| id.clone()).collect();
-        for id in server_ids {
-            if let Some(server) = self.registry.remove(&id) {
-                DownstreamLifecycle_core::shutdown(server).await;
-            }
+        for server in self.registry.drain_all() {
+            DownstreamLifecycle_core::shutdown(server).await;
         }
 
         Ok(ExitCode::SUCCESS)
@@ -173,7 +224,7 @@ impl ProxyAdapter_adp {
         match method {
             "initialize" => McpServer_core::handle_initialize(id),
             "tools/list" => McpServer_core::handle_tools_list(id, &self.registry),
-            "tools/call" => handle_tools_call(id, params, &mut self.registry, &mut self.upstream, self.init_timeout_secs).await,
+            "tools/call" => handle_tools_call(id, params, &mut self.registry, &mut self.upstream, &self.event_tx, self.init_timeout_secs, self.tool_call_timeout_secs).await,
             "ping" => {
                 // Respond to ping
                 crate::shared::JsonRpcResponse_x {

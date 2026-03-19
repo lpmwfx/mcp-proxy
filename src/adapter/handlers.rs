@@ -1,10 +1,11 @@
 //! Handler functions for proxy management tools and tool dispatch.
 
 use serde_json::{json, Value};
+use tokio::sync::mpsc;
 
 use crate::core::{DownstreamLifecycle_core, McpServer_core, ServerRegistry_core};
 use crate::gateway::{DownstreamGateway_gtw, UpstreamGateway_gtw};
-use crate::shared::JsonRpcId_x;
+use crate::shared::{JsonRpcId_x, ProxyEvent_x};
 
 /// Handle `tools/call` — routes to proxy handlers or downstream.
 pub async fn handle_tools_call(
@@ -12,7 +13,9 @@ pub async fn handle_tools_call(
     params: Option<Value>,
     registry: &mut ServerRegistry_core,
     upstream: &mut UpstreamGateway_gtw,
+    event_tx: &mpsc::Sender<ProxyEvent_x>,
     init_timeout_secs: u64,
+    tool_call_timeout_secs: u64,
 ) -> crate::shared::JsonRpcResponse_x {
     let params = match params {
         Some(p) => p,
@@ -33,7 +36,7 @@ pub async fn handle_tools_call(
     // Handle proxy management tools
     match tool_name {
         "mcp/load" => {
-            return handle_proxy_load(id, arguments, registry, upstream, init_timeout_secs).await;
+            return handle_proxy_load(id, arguments, registry, upstream, event_tx, init_timeout_secs).await;
         }
         "mcp/unload" => {
             return handle_proxy_unload(id, arguments, registry, upstream).await;
@@ -42,7 +45,7 @@ pub async fn handle_tools_call(
             return handle_proxy_list(id, registry);
         }
         "mcp/restart" => {
-            return handle_proxy_restart(id, arguments, registry, upstream, init_timeout_secs).await;
+            return handle_proxy_restart(id, arguments, registry, upstream, event_tx, init_timeout_secs).await;
         }
         _ => {}
     }
@@ -61,7 +64,7 @@ pub async fn handle_tools_call(
                 "arguments": arguments
             });
 
-            match DownstreamGateway_gtw::send_request(server, "tools/call", Some(downstream_params)).await {
+            match DownstreamGateway_gtw::send_request(server, "tools/call", Some(downstream_params), tool_call_timeout_secs).await {
                 Ok(resp) => {
                     // Mirror response back to upstream (update id)
                     crate::shared::JsonRpcResponse_x {
@@ -87,6 +90,7 @@ pub async fn handle_proxy_load(
     args: Option<Value>,
     registry: &mut ServerRegistry_core,
     upstream: &mut UpstreamGateway_gtw,
+    event_tx: &mpsc::Sender<ProxyEvent_x>,
     init_timeout_secs: u64,
 ) -> crate::shared::JsonRpcResponse_x {
     let args = match args {
@@ -119,8 +123,18 @@ pub async fn handle_proxy_load(
     };
 
     // Spawn and initialize server
-    match DownstreamLifecycle_core::spawn_and_initialize(server_id, std::path::Path::new(binary), &server_args, init_timeout_secs).await {
-        Ok(server) => {
+    match DownstreamLifecycle_core::spawn_and_initialize(server_id, std::path::Path::new(binary), &server_args, init_timeout_secs, event_tx.clone()).await {
+        Ok(mut server) => {
+            // Spawn watcher and store handle
+            let binary_path = server.binary.clone();
+            let sid = server.id.clone();
+            let tx = event_tx.clone();
+            let watcher_handle = tokio::spawn(async move {
+                use crate::gateway::WatcherGateway_gtw;
+                WatcherGateway_gtw::watch_binary(sid, &binary_path, tx).await;
+            });
+            server.watcher_handle = Some(watcher_handle);
+
             registry.insert(server);
 
             // Send list_changed notification
@@ -222,6 +236,7 @@ pub async fn handle_proxy_restart(
     args: Option<Value>,
     registry: &mut ServerRegistry_core,
     upstream: &mut UpstreamGateway_gtw,
+    event_tx: &mpsc::Sender<ProxyEvent_x>,
     init_timeout_secs: u64,
 ) -> crate::shared::JsonRpcResponse_x {
     let args = match args {
@@ -238,8 +253,18 @@ pub async fn handle_proxy_restart(
     match registry.remove(server_id) {
         Some(old_server) => {
             // Restart it
-            match DownstreamLifecycle_core::restart(old_server, init_timeout_secs).await {
-                Ok(new_server) => {
+            match DownstreamLifecycle_core::restart(old_server, init_timeout_secs, event_tx.clone()).await {
+                Ok(mut new_server) => {
+                    // Respawn watcher
+                    let binary_path = new_server.binary.clone();
+                    let sid = new_server.id.clone();
+                    let tx = event_tx.clone();
+                    let handle = tokio::spawn(async move {
+                        use crate::gateway::WatcherGateway_gtw;
+                        WatcherGateway_gtw::watch_binary(sid, &binary_path, tx).await;
+                    });
+                    new_server.watcher_handle = Some(handle);
+
                     registry.insert(new_server);
 
                     // Send list_changed notification

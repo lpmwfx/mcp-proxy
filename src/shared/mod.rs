@@ -6,6 +6,8 @@ use std::io;
 use std::path::PathBuf;
 use tokio::io::BufReader;
 use tokio::process::{Child, ChildStdin, ChildStdout};
+use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
 
 // ============================================================================
 // Timeout Constants
@@ -17,12 +19,12 @@ pub const INIT_TIMEOUT_DEFAULT_SECS: u64 = 5;
 /// Default timeout for tool calls (seconds).
 pub const TOOL_CALL_TIMEOUT_DEFAULT_SECS: u64 = 30;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// enum `ProxyEvent_x`.
 pub enum ProxyEvent_x {
     BinaryChanged(String), // server id
     ProcessDied(String),   // server id
-    RespawnDone(String),   // server id
+    RespawnDone(String, Box<DownstreamServer_x>), // server id, new server
 }
 
 #[derive(Debug)]
@@ -144,11 +146,14 @@ pub struct DownstreamServer_x {
     pub id: String,
     pub binary: PathBuf,
     pub args: Vec<String>,
-    pub child: Child,
     pub stdin: ChildStdin,
     pub stdout: BufLines,
     pub tools: Vec<McpTool_x>,
     pub next_id: i64,
+    pub crash_count: u32,
+    pub kill_tx: Option<oneshot::Sender<()>>,
+    pub monitor_handle: Option<JoinHandle<()>>,
+    pub watcher_handle: Option<JoinHandle<()>>,
 }
 
 // ============================================================================

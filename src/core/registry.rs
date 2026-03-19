@@ -93,4 +93,10 @@ impl ServerRegistry_core {
     pub fn servers_mut(&mut self) -> impl Iterator<Item = &mut DownstreamServer_x> {
         self.servers.values_mut()
     }
+
+    /// fn `drain_all` — removes and returns all servers.
+    pub fn drain_all(&mut self) -> Vec<DownstreamServer_x> {
+        self.tool_index.clear();
+        self.servers.drain().map(|(_, v)| v).collect()
+    }
 }
