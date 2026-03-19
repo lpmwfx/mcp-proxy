@@ -1,0 +1,83 @@
+# RAG — Claude Code CLI MCP Configuration
+
+## Configuration File Locations (2026)
+
+### PRIMARY: ~/.claude.json
+**Location:** User's HOME directory (NOT inside ~/.claude/)
+**Scope:** User-level MCP servers (applies across all projects unless overridden)
+**Format:** JSON with top-level "projects" object
+
+### SECONDARY: .mcp.json
+**Location:** Project root directory
+**Scope:** Project-scoped (team/version control friendly)
+**Format:** JSON configuration for project-specific servers
+
+### LOCAL: .claude/settings.local.json
+**Location:** Inside project directory
+**Scope:** Local project settings
+**Note:** Pre-commit hook configuration, IDE settings
+
+---
+
+## mcp-proxy Configuration (CURRENT)
+
+### ~/.claude.json (User Config)
+Updated 2026-03-19 to include mcp-proxy under "D:/REPO/RUSTPROJECTS/MCP/mcp-proxy" project:
+
+```json
+"D:/REPO/RUSTPROJECTS/MCP/mcp-proxy": {
+  "mcpServers": {
+    "mcp-proxy": {
+      "command": "D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/target/release/mcp-proxy.exe",
+      "args": ["--config", "mcp-servers.json"],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+### Effect
+- Claude Code CLI only sees **mcp-proxy** when in mcp-proxy project
+- All downstream servers (gui-mcp, rules, rulestools) loaded via proxy's mcp-servers.json
+- Issues MCP available via rulestools-mcp integration
+- Crash recovery, graceful shutdown, and all Phase 5 features active
+
+---
+
+## Important Notes
+
+1. **~/.claude.json is the PRIMARY config**, NOT ~/.claude/settings.json
+   - settings.json is a backup/cache file
+   - Always edit ~/.claude.json for lasting changes
+
+2. **Project-specific configs** (.mcp.json in project root) override ~/.claude.json
+   - Useful for team setup or per-project MCP server selection
+
+3. **Changes take effect immediately** when Claude Code refreshes (no restart needed in most cases)
+
+4. **Multiple projects can have different MCP configs**
+   - Each project in ~/.claude.json under "projects" key
+   - Example: gui-mcp project might load different servers than mcp-proxy
+
+---
+
+## Sources
+
+- [Claude Code MCP Documentation](https://code.claude.com/docs/en/mcp)
+- [Configuration Guide - MCPcat](https://mcpcat.io/guides/adding-an-mcp-server-to-claude-code/)
+- [Claude Code Configuration - ClaudeLog](https://claudelog.com/configuration/)
+- [Issue #4976 - Configuration File Location](https://github.com/anthropics/claude-code/issues/4976)
+
+---
+
+## Verification
+
+To verify mcp-proxy is configured:
+1. In Claude Code, check that only "mcp-proxy" appears in available MCP servers
+2. Proxy should load gui-mcp, rules, rulestools from mcp-servers.json
+3. Check mcp-proxy.log for server initialization messages
+
+```bash
+tail -20 mcp-proxy.log
+# Should show: "server loaded and initialized [server=gui-mcp]" etc
+```
