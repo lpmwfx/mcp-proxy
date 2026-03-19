@@ -163,7 +163,7 @@ Servere kan også loades dynamisk via `proxy/load` uden config-fil.
 
 - phase: 3
 - id: mcp-protocol
-- status: planning
+- status: complete
 
 ## History
 

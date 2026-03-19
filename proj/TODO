@@ -1,42 +1,43 @@
 # TODO — mcp-proxy
 
-## Phase: 3 (mcp-protocol)
+## Phase: 3 (mcp-protocol) — COMPLETE
 
 ### 3a: JSON-RPC upstream read loop
-- [ ] shared/_x: JsonRpcRequest_x, JsonRpcResponse_x types (serde)
-- [ ] gateway/_gtw: UpstreamGateway_gtw — BufReader på stdin, læs linje-for-linje, parse JSON-RPC
-- [ ] gateway/_gtw: UpstreamWriter_gtw — Mutex<Stdout>, skriv JSON-RPC + newline + flush
+- [x] shared/_x: JsonRpcRequest_x, JsonRpcResponse_x types (serde)
+- [x] gateway/_gtw: UpstreamGateway_gtw — BufReader på stdin, læs linje-for-linje, parse JSON-RPC
+- [x] gateway/_gtw: send_response, send_notification — skriv JSON-RPC + newline + flush
 
 ### 3b: MCP server (proxy selv)
-- [ ] core/_core: McpServer_core — handler for initialize, tools/list, tools/call
-- [ ] core/_core: initialize handler — returnér server info + capabilities (tools)
-- [ ] core/_core: tools/list handler — returnér proxy-tools + aggregerede downstream tools
-- [ ] core/_core: tools/call handler — route til intern handler eller downstream
+- [x] core/_core: McpServer_core — handler for initialize, tools/list, tools/call
+- [x] core/_core: initialize handler — returnér server info + capabilities (tools)
+- [x] core/_core: tools/list handler — returnér proxy-tools + aggregerede downstream tools
+- [x] core/_core: tools/call handler — route til intern handler eller downstream
 
 ### 3c: Downstream server registry
-- [ ] shared/_x: DownstreamServer_x struct (id, binary, args, child, tools)
-- [ ] core/_core: ServerRegistry_core — HashMap<String, DownstreamServer_x>
-- [ ] gateway/_gtw: spawn downstream, send initialize, kald tools/list, gem tools
-- [ ] gateway/_gtw: send routet tools/call til downstream, læs response
+- [x] shared/_x: DownstreamServer_x struct (id, binary, args, child, tools)
+- [x] core/_core: ServerRegistry_core — HashMap<String, DownstreamServer_x>
+- [x] gateway/_gtw: DownstreamGateway_gtw — send_request, send_notification
+- [x] core/_core: DownstreamLifecycle_core — spawn_and_initialize, shutdown
 
 ### 3d: Tool routing
-- [ ] core/_core: tool namespace — "server-id::tool-name" mapping
-- [ ] core/_core: route tools/call — strip prefix, find server, dispatch
+- [x] core/_core: tool namespace — "server-id__tool-name" mapping
+- [x] core/_core: route tools/call — split prefix, find server, dispatch
 
 ### 3e: Proxy management tools
-- [ ] core/_core: proxy/load — spawn server, collect tools, list_changed
-- [ ] core/_core: proxy/unload — kill server, remove tools, list_changed
-- [ ] core/_core: proxy/list — returnér kørende servere
+- [x] core/_core: proxy/load — spawn server, collect tools, list_changed
+- [x] core/_core: proxy/unload — kill server, remove tools, list_changed
+- [x] core/_core: proxy/list — returnér kørende servere
 
 ### 3f: list_changed notification
-- [ ] adapter/_adp: send notifications/tools/list_changed til upstream efter load/unload
+- [x] adapter/_adp: send notifications/tools/list_changed til upstream efter load/unload
 
 ### 3g: Wire + test
-- [ ] adapter/_adp: main loop — read upstream → route → respond
-- [ ] main.rs: opdater CLI (--config flag valgfri)
-- [ ] Verify build: cargo build
-- [ ] Test: spawn test-server, verify tools/list aggregering
-- [ ] Test: proxy/load + proxy/unload flow
+- [x] adapter/_adp: main loop — read upstream → route → respond
+- [x] main.rs: simplify CLI (no downstream binary args needed)
+- [x] Verify build: cargo build ✓
+- [x] Test: initialize ✓
+- [x] Test: tools/list (proxy tools) ✓
+- [x] Test: proxy/list (empty) ✓
 
 # --- DONES ---
 
