@@ -12,3 +12,5 @@ Thumbs.db
 relay_stderr.txt
 tests/*.exe
 tests/*.pdb
+test-server.pdb
+test-server.exe
