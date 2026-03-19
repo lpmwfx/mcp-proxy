@@ -14,3 +14,9 @@ tests/*.exe
 tests/*.pdb
 test-server.pdb
 test-server.exe
+
+# Logs
+*.log
+
+# Generated
+proj/ISSUES
