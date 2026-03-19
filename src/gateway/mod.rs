@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 
 use crate::shared::{
     DownstreamServer_x, JsonRpcError_x, JsonRpcId_x, JsonRpcNotification_x, JsonRpcRequest_x,
-    JsonRpcResponse_x, ProxyError_x, ProxyEvent_x, ProxyResult_x,
+    JsonRpcResponse_x, ProxyConfig_x, ProxyError_x, ProxyEvent_x, ProxyResult_x,
 };
 
 /// struct `ProcessGateway_gtw`.
@@ -48,9 +48,72 @@ impl RelayGateway_gtw {
 pub struct WatcherGateway_gtw;
 
 impl WatcherGateway_gtw {
-    /// Stub — blocks forever. Activated in phase 3.
-    pub async fn watch_binary(_path: &Path, _tx: mpsc::Sender<ProxyEvent_x>) {
-        std::future::pending::<()>().await;
+    /// fn `watch_binary` — watches a binary file for modifications.
+    pub async fn watch_binary(path: &Path, tx: mpsc::Sender<ProxyEvent_x>) {
+        use notify::{Watcher, RecursiveMode, Result as NotifyResult};
+        use std::sync::mpsc as sync_mpsc;
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let (tx_notify, rx_notify) = sync_mpsc::channel();
+        let should_stop = Arc::new(AtomicBool::new(false));
+        let should_stop_clone = Arc::clone(&should_stop);
+
+        // Spawn blocking watcher in background task
+        let path = path.to_path_buf();
+        let _watcher_task = tokio::task::spawn_blocking(move || {
+            let mut watcher = match notify::recommended_watcher(move |res: NotifyResult<notify::Event>| {
+                match res {
+                    Ok(event) => {
+                        if matches!(event.kind, notify::EventKind::Modify(_)) {
+                            let _ = tx_notify.send(());
+                        }
+                    }
+                    Err(_) => {}
+                }
+            }) {
+                Ok(w) => w,
+                Err(_) => return,
+            };
+
+            if let Err(_) = watcher.watch(&path, RecursiveMode::NonRecursive) {
+                return;
+            }
+
+            // Keep watcher alive until stop signal
+            while !should_stop_clone.load(Ordering::Relaxed) {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        });
+
+        // Forward events to async channel
+        while let Ok(()) = rx_notify.recv() {
+            let _ = tx.send(ProxyEvent_x::BinaryChanged).await;
+        }
+
+        should_stop.store(true, Ordering::Relaxed);
+    }
+}
+
+// ============================================================================
+// ConfigGateway_gtw — loads config from JSON file
+// ============================================================================
+
+/// struct `ConfigGateway_gtw` — loads MCP server configuration from file.
+pub struct ConfigGateway_gtw;
+
+impl ConfigGateway_gtw {
+    /// fn `load_config` — loads mcp-servers.json (or custom path).
+    pub fn load_config(path: &Path) -> ProxyResult_x<ProxyConfig_x> {
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ProxyError_x::WatchFailed(format!("read config: {e}")))?;
+        serde_json::from_str::<ProxyConfig_x>(&content)
+            .map_err(|e| ProxyError_x::JsonParse(e))
+    }
+
+    /// fn `config_exists` — checks if a config file exists.
+    pub fn config_exists(path: &Path) -> bool {
+        path.exists() && path.is_file()
     }
 }
 

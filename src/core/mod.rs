@@ -236,6 +236,16 @@ impl DownstreamLifecycle_core {
         let _ = server.child.kill().await;
         let _ = server.child.wait().await;
     }
+
+    /// fn `restart` — kills and respawns a server, collects tools.
+    pub async fn restart(mut old_server: DownstreamServer_x) -> ProxyResult_x<DownstreamServer_x> {
+        // Kill old server
+        let _ = old_server.child.kill().await;
+        let _ = old_server.child.wait().await;
+
+        // Respawn with same config
+        Self::spawn_and_initialize(&old_server.id, &old_server.binary, &old_server.args).await
+    }
 }
 
 // ============================================================================
@@ -277,6 +287,17 @@ impl McpServer_core {
                 name: "proxy/list".to_string(),
                 description: Some("List all loaded servers".to_string()),
                 input_schema: json!({"type": "object", "properties": {}}),
+            },
+            McpTool_x {
+                name: "proxy/restart".to_string(),
+                description: Some("Restart an MCP server".to_string()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Server ID to restart" }
+                    },
+                    "required": ["id"]
+                }),
             },
         ]
     }

@@ -2,21 +2,6 @@
 
 ## Active
 
-- phase: 3
-  id: mcp-protocol
-  title: "MCP protocol + multiplexer"
-  milestone: "Proxy er selv en MCP-server, kan spawne og route til multiple downstream servere"
-  delivers:
-    - JSON-RPC parser (upstream read loop)
-    - MCP initialize/tools_list/tools_call handlers
-    - Downstream server registry (spawn, initialize, collect tools)
-    - Tool routing: namespace prefix → downstream dispatch
-    - proxy/load, proxy/unload, proxy/list tools
-    - notifications/tools/list_changed upstream
-  status: active
-
-## Planned
-
 - phase: 4
   id: config-and-restart
   title: "Config file + restart + watcher"
@@ -27,7 +12,9 @@
     - proxy/restart tool
     - Binary file watcher (notify crate)
     - Auto-restart ved binary Modify event
-  status: planned
+  status: active
+
+## Planned
 
 - phase: 5
   id: polish

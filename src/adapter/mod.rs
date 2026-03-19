@@ -1,53 +1,122 @@
 //! Adapter layer (_adp) — hub, MCP protocol main loop.
 
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use serde_json::{json, Value};
+use tokio::sync::mpsc;
 
 use crate::core::{DownstreamLifecycle_core, McpServer_core, ServerRegistry_core};
-use crate::gateway::{DownstreamGateway_gtw, UpstreamGateway_gtw};
-use crate::shared::{JsonRpcId_x, ProxyError_x, ProxyResult_x};
+use crate::gateway::{ConfigGateway_gtw, DownstreamGateway_gtw, UpstreamGateway_gtw, WatcherGateway_gtw};
+use crate::shared::{JsonRpcId_x, ProxyEvent_x, ProxyError_x, ProxyResult_x};
 
 /// struct `ProxyAdapter_adp` — MCP protocol hub.
 pub struct ProxyAdapter_adp {
     upstream: UpstreamGateway_gtw,
     registry: ServerRegistry_core,
+    event_rx: mpsc::Receiver<ProxyEvent_x>,
+    event_tx: mpsc::Sender<ProxyEvent_x>,
+    config_path: Option<PathBuf>,
 }
 
 impl ProxyAdapter_adp {
     /// fn `new` — creates adapter with empty registry.
     pub fn new() -> Self {
+        let (tx, rx) = mpsc::channel(100);
         Self {
             upstream: UpstreamGateway_gtw::new(),
             registry: ServerRegistry_core::new(),
+            event_rx: rx,
+            event_tx: tx,
+            config_path: None,
         }
     }
 
-    /// fn `run` — main event loop: read requests, dispatch, respond, cleanup.
+    /// fn `with_config` — sets the config file path.
+    pub fn with_config(mut self, path: PathBuf) -> Self {
+        self.config_path = Some(path);
+        self
+    }
+
+    /// fn `run` — main event loop: load config, read requests, dispatch, respond, cleanup.
     pub async fn run(mut self) -> ProxyResult_x<ExitCode> {
-        loop {
-            // Read next JSON-RPC request from upstream
-            let req = match self.upstream.read_request().await {
-                Ok(None) => break, // EOF
-                Ok(Some(r)) => r,
-                Err(e) => {
-                    eprintln!("mcp-proxy: error reading request: {e}");
-                    break;
+        // Load config if provided
+        if let Some(ref config_path) = self.config_path {
+            if ConfigGateway_gtw::config_exists(config_path) {
+                match ConfigGateway_gtw::load_config(config_path) {
+                    Ok(config) => {
+                        eprintln!("mcp-proxy: loading {} servers from config", config.servers.len());
+                        for server_cfg in config.servers {
+                            let binary = Path::new(&server_cfg.binary);
+                            match DownstreamLifecycle_core::spawn_and_initialize(&server_cfg.id, binary, &server_cfg.args).await {
+                                Ok(server) => {
+                                    let id = server.id.clone();
+                                    // Spawn watcher for this server
+                                    let tx = self.event_tx.clone();
+                                    let binary_path = binary.to_path_buf();
+                                    tokio::spawn(async move {
+                                        WatcherGateway_gtw::watch_binary(&binary_path, tx).await;
+                                    });
+                                    self.registry.insert(server);
+                                    eprintln!("mcp-proxy: loaded server: {}", id);
+                                }
+                                Err(e) => {
+                                    eprintln!("mcp-proxy: failed to load {}: {}", server_cfg.id, e);
+                                }
+                            }
+                        }
+                        // Send list_changed after auto-load
+                        if !self.registry.server_list().is_empty() {
+                            let _ = self.upstream.send_notification(McpServer_core::tools_list_changed_notification()).await;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("mcp-proxy: failed to load config: {e}");
+                    }
                 }
-            };
+            }
+        }
 
-            // Skip notifications from upstream (no id)
-            let req_id = match req.id {
-                Some(id) => id,
-                None => continue,
-            };
-
-            // Dispatch request
-            let response = self.dispatch(req_id.clone(), &req.method, req.params).await;
-
-            // Send response to upstream
-            if let Err(e) = self.upstream.send_response(response).await {
-                eprintln!("mcp-proxy: error sending response: {e}");
-                break;
+        // Main event loop
+        loop {
+            tokio::select! {
+                // Handle upstream JSON-RPC requests
+                req_result = self.upstream.read_request() => {
+                    match req_result {
+                        Ok(None) => break, // EOF
+                        Ok(Some(r)) => {
+                            let req_id = match r.id {
+                                Some(id) => id,
+                                None => continue, // Skip notifications
+                            };
+                            let response = self.dispatch(req_id.clone(), &r.method, r.params).await;
+                            if let Err(e) = self.upstream.send_response(response).await {
+                                eprintln!("mcp-proxy: error sending response: {e}");
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("mcp-proxy: error reading request: {e}");
+                            break;
+                        }
+                    }
+                }
+                // Handle internal events (binary changed, process died, etc)
+                event = self.event_rx.recv() => {
+                    match event {
+                        Some(ProxyEvent_x::BinaryChanged) => {
+                            // We don't have server id from event, so this is a stub
+                            // In practice, we'd need to track which watcher belongs to which server
+                            eprintln!("mcp-proxy: binary changed (event received)");
+                        }
+                        Some(ProxyEvent_x::ProcessDied) => {
+                            eprintln!("mcp-proxy: downstream process died");
+                        }
+                        Some(ProxyEvent_x::RespawnDone) => {
+                            eprintln!("mcp-proxy: respawn complete");
+                        }
+                        None => break, // Channel closed
+                    }
+                }
             }
         }
 
@@ -119,6 +188,9 @@ impl ProxyAdapter_adp {
             "proxy/list" => {
                 return self.handle_proxy_list(id);
             }
+            "proxy/restart" => {
+                return self.handle_proxy_restart(id, arguments).await;
+            }
             _ => {}
         }
 
@@ -153,6 +225,54 @@ impl ProxyAdapter_adp {
                 }
             }
             None => McpServer_core::error_response(id, -32601, "Tool not found"),
+        }
+    }
+
+    /// fn `handle_proxy_restart` — restarts a downstream server.
+    async fn handle_proxy_restart(
+        &mut self,
+        id: JsonRpcId_x,
+        args: Option<Value>,
+    ) -> crate::shared::JsonRpcResponse_x {
+        let args = match args {
+            Some(a) => a,
+            None => return McpServer_core::error_response(id, -32602, "Missing arguments"),
+        };
+
+        let server_id = match args.get("id").and_then(|v| v.as_str()) {
+            Some(s) => s,
+            None => return McpServer_core::error_response(id, -32602, "Missing server id"),
+        };
+
+        // Remove old server
+        match self.registry.remove(server_id) {
+            Some(old_server) => {
+                // Restart it
+                match DownstreamLifecycle_core::restart(old_server).await {
+                    Ok(new_server) => {
+                        self.registry.insert(new_server);
+
+                        // Send list_changed notification
+                        let _ = self
+                            .upstream
+                            .send_notification(McpServer_core::tools_list_changed_notification())
+                            .await;
+
+                        // Return success
+                        crate::shared::JsonRpcResponse_x {
+                            jsonrpc: "2.0".to_string(),
+                            id,
+                            result: Some(json!({"status": "ok"})),
+                            error: None,
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("mcp-proxy: failed to restart server: {e}");
+                        McpServer_core::error_response(id, -32603, &format!("Restart failed: {e}"))
+                    }
+                }
+            }
+            None => McpServer_core::error_response(id, -32603, "Server not found"),
         }
     }
 

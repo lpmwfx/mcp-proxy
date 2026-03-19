@@ -140,3 +140,22 @@ pub struct DownstreamServer_x {
     pub tools: Vec<McpTool_x>,
     pub next_id: i64,
 }
+
+// ============================================================================
+// Configuration Types
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct `ServerConfig_x` — configuration for a single downstream server.
+pub struct ServerConfig_x {
+    pub id: String,
+    pub binary: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+/// struct `ProxyConfig_x` — top-level configuration (list of servers to auto-load).
+pub struct ProxyConfig_x {
+    pub servers: Vec<ServerConfig_x>,
+}
