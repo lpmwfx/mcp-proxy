@@ -1,0 +1,340 @@
+# INSTALL — mcp-proxy System Setup Guide
+
+## Overview
+
+**mcp-proxy MUST run as a SYSTEM MCP** (User MCPs in `~/.claude.json`), NOT as a project-local tool.
+
+This ensures:
+- All Claude instances on the system see mcp-proxy
+- All MCP servers route through proxy (crash recovery, timeouts, graceful shutdown apply globally)
+- No direct MCP connections (all controlled by proxy)
+- Issues MCP (via rulestools) captures all errors system-wide
+
+---
+
+## Installation Steps
+
+### 1. Build Release Binary
+
+```bash
+cd D:/REPO/RUSTPROJECTS/MCP/mcp-proxy
+cargo build --release
+# Produces: target/release/mcp-proxy.exe
+```
+
+### 2. Configure Downstream Servers (mcp-servers.json)
+
+Create `mcp-servers.json` in project directory:
+
+```json
+{
+  "servers": [
+    {
+      "id": "gui-mcp",
+      "binary": "C:/Users/your-user/bin/gui-mcp.exe",
+      "args": []
+    },
+    {
+      "id": "rules",
+      "binary": "rules-mcp",
+      "args": []
+    },
+    {
+      "id": "rulestools",
+      "binary": "rulestools-mcp",
+      "args": []
+    }
+  ],
+  "init_timeout_secs": 5,
+  "tool_call_timeout_secs": 30
+}
+```
+
+Each server will be loaded by mcp-proxy on startup.
+
+### 3. Add mcp-proxy to Claude Code (SYSTEM MCP)
+
+**IMPORTANT:** mcp-proxy goes in **User MCPs** (system-wide), NOT in project-local MCPs.
+
+Edit `~/.claude.json` (your HOME directory, NOT `~/.claude/`):
+
+```json
+{
+  "mcpServers": {
+    "mcp-proxy": {
+      "command": "D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/target/release/mcp-proxy.exe",
+      "args": ["--config", "D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/mcp-servers.json"],
+      "type": "stdio"
+    }
+  },
+  "projects": {
+    "...other projects...": {
+      "mcpServers": {}
+    }
+  }
+}
+```
+
+**Key points:**
+- Top-level `"mcpServers"` = User MCPs (applies to ALL Claude instances on system)
+- Under `"projects"` = Local MCPs (project-specific, should be EMPTY for mcp-proxy projects)
+
+### 4. Start mcp-proxy
+
+```bash
+# Option A: From project directory
+./target/release/mcp-proxy --config mcp-servers.json
+
+# Option B: With absolute path to config
+D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/target/release/mcp-proxy.exe \
+  --config D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/mcp-servers.json
+```
+
+Proxy will:
+1. Load all servers from config
+2. Initialize each server (handshake + tools collection)
+3. Enter event loop (listen for requests, handle crashes, watch files)
+4. Log to `mcp-proxy.log`
+
+---
+
+## Editing Claude Code MCP Configuration
+
+### File Location: `~/.claude.json`
+
+**Not** `~/.claude/settings.json` (that's a backup/cache)
+
+**Location:**
+- Windows: `C:\Users\YourUsername\.claude.json`
+- macOS/Linux: `~/.claude.json`
+
+### Structure
+
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "command": "/path/to/binary",
+      "args": ["arg1", "arg2"],
+      "type": "stdio"
+    }
+  },
+  "projects": {
+    "D:/path/to/project": {
+      "mcpServers": {
+        "project-specific-server": { ... }
+      },
+      ...
+    }
+  }
+}
+```
+
+### Levels of Configuration
+
+1. **User MCPs** (top-level `"mcpServers"`)
+   - Applied to ALL Claude instances on your system
+   - Persistent across all projects
+   - **This is where mcp-proxy goes**
+
+2. **Project MCPs** (under `"projects"` → specific project → `"mcpServers"`)
+   - Applied ONLY when working in that project
+   - Overrides/supplements User MCPs
+   - Usually empty for mcp-proxy projects (servers loaded via proxy config instead)
+
+### How to Add mcp-proxy
+
+Using Python to safely edit `~/.claude.json`:
+
+```python
+import json
+import os
+
+config_path = os.path.expanduser("~/.claude.json")
+with open(config_path, "r") as f:
+    config = json.load(f)
+
+# Add mcp-proxy to User MCPs (system-wide)
+if "mcpServers" not in config:
+    config["mcpServers"] = {}
+
+config["mcpServers"]["mcp-proxy"] = {
+    "command": "D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/target/release/mcp-proxy.exe",
+    "args": ["--config", "D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/mcp-servers.json"],
+    "type": "stdio"
+}
+
+with open(config_path, "w") as f:
+    json.dump(config, f, indent=2)
+
+print("mcp-proxy added to User MCPs")
+```
+
+Or manually edit `~/.claude.json`:
+
+Find the top-level `"mcpServers"` object and add:
+```json
+"mcp-proxy": {
+  "command": "D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/target/release/mcp-proxy.exe",
+  "args": ["--config", "D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/mcp-servers.json"],
+  "type": "stdio"
+}
+```
+
+---
+
+## Verification
+
+### Check Configuration is Correct
+
+```bash
+# Option 1: In Claude Code, run `/mcp` command
+# Should show: mcp-proxy connected
+
+# Option 2: Check ~/.claude.json directly
+cat ~/.claude.json | grep -A 3 "mcp-proxy"
+
+# Option 3: List MCP servers
+# mcp list (if available in your Claude Code version)
+```
+
+Expected output:
+```
+User MCPs:     mcp-proxy ✔ connected
+Project MCPs:  (none)
+```
+
+### Check Proxy is Working
+
+```bash
+# Check log for successful server loading
+tail -20 mcp-proxy.log
+
+# Should show:
+# [mcp_proxy::adapter] server loaded and initialized [server=gui-mcp]
+# [mcp_proxy::adapter] server loaded and initialized [server=rules]
+# [mcp_proxy::adapter] server loaded and initialized [server=rulestools]
+```
+
+### Test Tool Execution
+
+In Claude Code, try:
+```
+Call mcp/list → should show running servers
+Call mcp/load → dynamically load new server
+Call mcp/unload → remove server
+```
+
+---
+
+## Troubleshooting
+
+### Problem: mcp-proxy not appearing in Claude Code
+
+**Check:**
+1. Is `~/.claude.json` edited correctly? (TOP-LEVEL mcpServers, not under "projects")
+2. Is the binary path correct? (`target/release/mcp-proxy.exe`)
+3. Is the config file path correct? (absolute path preferred)
+4. Did you restart Claude Code? (sometimes needed)
+
+**Fix:**
+```bash
+# Verify ~/.claude.json syntax
+python3 -m json.tool ~/.claude.json | head -20
+
+# Check file exists and is executable
+ls -lh D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/target/release/mcp-proxy.exe
+```
+
+### Problem: Servers not loading
+
+**Check mcp-proxy.log:**
+```bash
+tail -50 mcp-proxy.log | grep -E "error|failed|ERROR"
+```
+
+**Common issues:**
+- `init_timeout_secs` too short for slow Python servers (increase to 10-15)
+- Binary path wrong in `mcp-servers.json`
+- Server binary not found or not executable
+- Server incompatible with MCP protocol
+
+### Problem: Crashes not being recovered
+
+**Check:**
+1. Proxy should still be running (check `ps aux | grep mcp-proxy`)
+2. Check log for `ProcessDied` events:
+   ```bash
+   grep "ProcessDied\|RespawnDone" mcp-proxy.log
+   ```
+3. Look for exponential backoff progression (2s → 4s → 8s → 16s)
+
+### Problem: Some MCP servers still loading directly
+
+**Cause:** Multiple MCP servers configured in `~/.claude.json` User MCPs
+
+**Fix:** Remove them from User MCPs (top-level). They should ONLY be loaded through mcp-proxy:
+```bash
+# Remove from User MCPs, keep ONLY mcp-proxy
+# Then add servers to mcp-servers.json (mcp-proxy will load them)
+```
+
+---
+
+## Important Notes
+
+### DO's
+- ✅ Configure mcp-proxy in `~/.claude.json` User MCPs (top-level)
+- ✅ List downstream servers in `mcp-servers.json`
+- ✅ Use absolute paths for binaries when possible
+- ✅ Monitor `mcp-proxy.log` for crashes/errors
+- ✅ Test with `mcp/list` to verify servers loaded
+
+### DON'Ts
+- ❌ Don't put mcp-proxy in project-local MCPs
+- ❌ Don't configure downstream servers in `~/.claude.json` (do it in mcp-servers.json)
+- ❌ Don't set init_timeout_secs too low (Python servers can be slow)
+- ❌ Don't have duplicate MCP server definitions (system + proxy)
+
+---
+
+## Reference: Claude Code MCP Configuration Files
+
+| File | Location | Scope | Format |
+|------|----------|-------|--------|
+| **~/.claude.json** | Home directory | User MCPs + Projects | JSON |
+| **mcp-servers.json** | Project root | Downstream servers (for proxy) | JSON |
+| **.mcp.json** | Project root | Project-scoped MCPs | JSON (alternative) |
+| **~/.claude/settings.json** | ~/.claude/ | Backup/cache (don't edit) | JSON |
+
+---
+
+## Testing Production Setup
+
+Once installed, verify end-to-end functionality:
+
+```bash
+# 1. Check mcp-proxy starts correctly
+./target/release/mcp-proxy --config mcp-servers.json
+
+# 2. In Claude Code, call mcp/list
+# Expected: Shows gui-mcp, rules, rulestools under mcp-proxy
+
+# 3. Test crash recovery
+# Kill a downstream server process, check log for ProcessDied + respawn
+
+# 4. Test graceful shutdown
+# Ctrl+C proxy, verify all servers shutdown cleanly in log
+
+# 5. Test tool calls
+# Execute a tool from downstream server, verify it works through proxy
+```
+
+---
+
+## References
+
+- [Claude Code MCP Documentation](https://code.claude.com/docs/en/mcp)
+- [Configuration File Locations (GitHub Issue #4976)](https://github.com/anthropics/claude-code/issues/4976)
+- [mcp-proxy README](./README.md) — Full feature documentation
+- [proj/RAG](./proj/RAG) — Configuration reference and troubleshooting
