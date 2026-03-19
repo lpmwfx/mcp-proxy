@@ -268,7 +268,7 @@ impl McpServer_core {
     pub fn proxy_tools() -> Vec<McpTool_x> {
         vec![
             McpTool_x {
-                name: "proxy/load".to_string(),
+                name: "mcp/load".to_string(),
                 description: Some("Load a new MCP server".to_string()),
                 input_schema: json!({
                     "type": "object",
@@ -281,7 +281,7 @@ impl McpServer_core {
                 }),
             },
             McpTool_x {
-                name: "proxy/unload".to_string(),
+                name: "mcp/unload".to_string(),
                 description: Some("Unload an MCP server".to_string()),
                 input_schema: json!({
                     "type": "object",
@@ -292,12 +292,12 @@ impl McpServer_core {
                 }),
             },
             McpTool_x {
-                name: "proxy/list".to_string(),
+                name: "mcp/list".to_string(),
                 description: Some("List all loaded servers".to_string()),
                 input_schema: json!({"type": "object", "properties": {}}),
             },
             McpTool_x {
-                name: "proxy/restart".to_string(),
+                name: "mcp/restart".to_string(),
                 description: Some("Restart an MCP server".to_string()),
                 input_schema: json!({
                     "type": "object",

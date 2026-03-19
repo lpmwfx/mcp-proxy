@@ -1,0 +1,12 @@
+[2m2026-03-19T10:28:39.383135Z[0m [32m INFO[0m [2mmcp_proxy[0m[2m:[0m starting MCP multiplexer
+[2m2026-03-19T10:28:39.383206Z[0m [32m INFO[0m [2mmcp_proxy[0m[2m:[0m using default config file [3mconfig[0m[2m=[0m"mcp-servers.json"
+[2m2026-03-19T10:28:39.383328Z[0m [32m INFO[0m [2mmcp_proxy::adapter[0m[2m:[0m loading servers from config [3mcount[0m[2m=[0m3
+[2m2026-03-19T10:28:39.546506Z[0m [32m INFO[0m [2mmcp_proxy::adapter[0m[2m:[0m server loaded and initialized [3mserver[0m[2m=[0mgui-mcp
+[2m2026-03-19T10:28:44.319140Z[0m [31mERROR[0m [2mmcp_proxy::adapter[0m[2m:[0m failed to load server [3mserver[0m[2m=[0mrules [3merror[0m[2m=[0minitialize failed: EOF on initialize
+[2m2026-03-19T10:28:48.994952Z[0m [32m INFO[0m [2mmcp_proxy[0m[2m:[0m starting MCP multiplexer
+[2m2026-03-19T10:28:48.994976Z[0m [32m INFO[0m [2mmcp_proxy[0m[2m:[0m using config file [3mconfig[0m[2m=[0m"D:\\REPO\\RUSTPROJECTS\\MCP\\mcp-proxy\\mcp-servers.json"
+[2m2026-03-19T10:28:48.995105Z[0m [32m INFO[0m [2mmcp_proxy::adapter[0m[2m:[0m loading servers from config [3mcount[0m[2m=[0m3
+[2m2026-03-19T10:28:49.003712Z[0m [32m INFO[0m [2mmcp_proxy::adapter[0m[2m:[0m server loaded and initialized [3mserver[0m[2m=[0mgui-mcp
+[2m2026-03-19T10:28:51.882896Z[0m [32m INFO[0m [2mmcp_proxy::adapter[0m[2m:[0m server loaded and initialized [3mserver[0m[2m=[0mrules
+[2m2026-03-19T10:28:52.827206Z[0m [32m INFO[0m [2mmcp_proxy::adapter[0m[2m:[0m server loaded and initialized [3mserver[0m[2m=[0mrulestools
+[2m2026-03-19T10:28:52.833325Z[0m [32m INFO[0m [2mmcp_proxy[0m[2m:[0m proxy shutdown

@@ -1,5 +1,7 @@
 use clap::Parser;
 use std::path::PathBuf;
+use tracing_appender::non_blocking;
+use tracing_subscriber::fmt::time::SystemTime;
 
 mod adapter;
 mod core;
@@ -17,27 +19,43 @@ struct Cli {
 
 #[tokio::main]
 async fn main() {
+    // Initialize logging to file
+    let file_appender = tracing_appender::rolling::never(".", "mcp-proxy.log");
+    let (non_blocking, _guard) = non_blocking(file_appender);
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking)
+        .with_timer(SystemTime::default())
+        .with_level(true)
+        .init();
+
     let cli = Cli::parse();
 
-    eprintln!("mcp-proxy: starting MCP multiplexer");
+    tracing::info!("starting MCP multiplexer");
 
     let adapter = match cli.config {
-        Some(path) => adapter::ProxyAdapter_adp::new().with_config(path),
+        Some(path) => {
+            tracing::info!(config = ?path, "using config file");
+            adapter::ProxyAdapter_adp::new().with_config(path)
+        }
         None => {
             // Try default config
             let default_path = PathBuf::from("mcp-servers.json");
             if default_path.exists() {
+                tracing::info!(config = ?default_path, "using default config file");
                 adapter::ProxyAdapter_adp::new().with_config(default_path)
             } else {
+                tracing::info!("no config file found, starting without servers");
                 adapter::ProxyAdapter_adp::new()
             }
         }
     };
 
     match adapter.run().await {
-        Ok(_) => {}
+        Ok(_) => {
+            tracing::info!("proxy shutdown");
+        }
         Err(e) => {
-            eprintln!("mcp-proxy: fatal: {e}");
+            tracing::error!(error = %e, "fatal error");
             std::process::exit(1);
         }
     }

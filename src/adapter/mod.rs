@@ -44,7 +44,8 @@ impl ProxyAdapter_adp {
             if ConfigGateway_gtw::config_exists(config_path) {
                 match ConfigGateway_gtw::load_config(config_path) {
                     Ok(config) => {
-                        eprintln!("mcp-proxy: loading {} servers from config", config.servers.len());
+                        let num_servers = config.servers.len();
+                        tracing::info!(count = num_servers, "loading servers from config");
                         for server_cfg in config.servers {
                             let binary = Path::new(&server_cfg.binary);
                             match DownstreamLifecycle_core::spawn_and_initialize(&server_cfg.id, binary, &server_cfg.args).await {
@@ -58,10 +59,10 @@ impl ProxyAdapter_adp {
                                         WatcherGateway_gtw::watch_binary(server_id, &binary_path, tx).await;
                                     });
                                     self.registry.insert(server);
-                                    eprintln!("mcp-proxy: loaded server: {}", id);
+                                    tracing::info!(server = %id, "server loaded and initialized");
                                 }
                                 Err(e) => {
-                                    eprintln!("mcp-proxy: failed to load {}: {}", server_cfg.id, e);
+                                    tracing::error!(server = %server_cfg.id, error = %e, "failed to load server");
                                 }
                             }
                         }
@@ -71,7 +72,7 @@ impl ProxyAdapter_adp {
                         }
                     }
                     Err(e) => {
-                        eprintln!("mcp-proxy: failed to load config: {e}");
+                        tracing::error!(error = %e, "failed to load config");
                     }
                 }
             }
@@ -91,12 +92,12 @@ impl ProxyAdapter_adp {
                             };
                             let response = self.dispatch(req_id.clone(), &r.method, r.params).await;
                             if let Err(e) = self.upstream.send_response(response).await {
-                                eprintln!("mcp-proxy: error sending response: {e}");
+                                tracing::error!(error = %e, "error sending response");
                                 break;
                             }
                         }
                         Err(e) => {
-                            eprintln!("mcp-proxy: error reading request: {e}");
+                            tracing::error!(error = %e, "error reading request");
                             break;
                         }
                     }
@@ -105,7 +106,7 @@ impl ProxyAdapter_adp {
                 event = self.event_rx.recv() => {
                     match event {
                         Some(ProxyEvent_x::BinaryChanged(server_id)) => {
-                            eprintln!("mcp-proxy: binary changed for server: {}", server_id);
+                            tracing::info!(server = %server_id, "binary modified, restarting server");
                             // Auto-restart the server
                             if let Some(old_server) = self.registry.remove(&server_id) {
                                 match DownstreamLifecycle_core::restart(old_server).await {
@@ -115,19 +116,19 @@ impl ProxyAdapter_adp {
                                         let _ = self.upstream
                                             .send_notification(McpServer_core::tools_list_changed_notification())
                                             .await;
-                                        eprintln!("mcp-proxy: restarted server: {}", server_id);
+                                        tracing::info!(server = %server_id, "server restarted successfully");
                                     }
                                     Err(e) => {
-                                        eprintln!("mcp-proxy: failed to restart {}: {}", server_id, e);
+                                        tracing::error!(server = %server_id, error = %e, "failed to restart server");
                                     }
                                 }
                             }
                         }
                         Some(ProxyEvent_x::ProcessDied(server_id)) => {
-                            eprintln!("mcp-proxy: downstream process died: {}", server_id);
+                            tracing::warn!(server = %server_id, "downstream process died unexpectedly");
                         }
                         Some(ProxyEvent_x::RespawnDone(server_id)) => {
-                            eprintln!("mcp-proxy: respawn complete: {}", server_id);
+                            tracing::info!(server = %server_id, "server respawn completed");
                         }
                         None => break, // Channel closed
                     }
@@ -194,16 +195,16 @@ impl ProxyAdapter_adp {
 
         // Handle proxy management tools
         match tool_name {
-            "proxy/load" => {
+            "mcp/load" => {
                 return self.handle_proxy_load(id, arguments).await;
             }
-            "proxy/unload" => {
+            "mcp/unload" => {
                 return self.handle_proxy_unload(id, arguments).await;
             }
-            "proxy/list" => {
+            "mcp/list" => {
                 return self.handle_proxy_list(id);
             }
-            "proxy/restart" => {
+            "mcp/restart" => {
                 return self.handle_proxy_restart(id, arguments).await;
             }
             _ => {}

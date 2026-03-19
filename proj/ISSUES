@@ -1,4 +1,4 @@
-# 63 issues
+# 67 issues
 
 [KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\adapter\mod.rs:24:1: warning rust/constants/no-magic-number: magic number 100 — use named const or _cfg field [rust/constants.md]
 [KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\adapter\mod.rs:41:1: warning rust/ownership/clone-spam: fn `run` has 5 .clone() calls — consider borrowing or restructuring [rust/ownership.md]
@@ -41,11 +41,15 @@
 [KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:129:1: warning rust/errors/no-expect: expect() in non-test code — use ? or return a typed error [rust/errors.md]
 [KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:130:1: warning rust/errors/no-expect: expect() in non-test code — use ? or return a typed error [rust/errors.md]
 [KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:148:1: warning rust/errors/no-unwrap: unwrap() in non-test code — use ? or handle the error explicitly [rust/errors.md]
-[KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:168:1: warning rust/errors/no-unwrap: unwrap() in non-test code — use ? or handle the error explicitly [rust/errors.md]
-[KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:179:1: warning rust/errors/no-unwrap: unwrap() in non-test code — use ? or handle the error explicitly [rust/errors.md]
-[KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:193:1: warning rust/errors/no-unwrap: unwrap() in non-test code — use ? or handle the error explicitly [rust/errors.md]
-[KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:228:1: warning rust/constants/no-magic-number: magic number 3 — use named const or _cfg field [rust/constants.md]
-[KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:361:1: warning global/file-limits: file has 275 code lines (limit 250) — split the module before adding anything [global/file-limits.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:156:1: warning rust/constants/no-hardcoded-duration: hardcoded Duration(5) — use a named constant from state/ [rust/constants.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:156:1: warning rust/constants/no-magic-number: magic number 5 — use named const or _cfg field [rust/constants.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:172:1: warning rust/errors/no-unwrap: unwrap() in non-test code — use ? or handle the error explicitly [rust/errors.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:183:1: warning rust/errors/no-unwrap: unwrap() in non-test code — use ? or handle the error explicitly [rust/errors.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:197:1: warning rust/errors/no-unwrap: unwrap() in non-test code — use ? or handle the error explicitly [rust/errors.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:205:1: warning rust/constants/no-hardcoded-duration: hardcoded Duration(5) — use a named constant from state/ [rust/constants.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:205:1: warning rust/constants/no-magic-number: magic number 5 — use named const or _cfg field [rust/constants.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:236:1: warning rust/constants/no-magic-number: magic number 3 — use named const or _cfg field [rust/constants.md]
+[NEW] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\core\mod.rs:369:1: warning global/file-limits: file has 283 code lines (limit 250) — split the module before adding anything [global/file-limits.md]
 [KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\gateway\mod.rs:59:1: warning rust/threading/arc-rc-comment: Arc/Rc usage without ownership comment — add // why shared? [rust/threading.md]
 [KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\gateway\mod.rs:60:1: warning rust/threading/arc-rc-comment: Arc/Rc usage without ownership comment — add // why shared? [rust/threading.md]
 [KNOWN] \\?\D:\REPO\RUSTPROJECTS\MCP\mcp-proxy\src\gateway\mod.rs:85:1: warning rust/constants/no-hardcoded-duration: hardcoded Duration(100) — use a named constant from state/ [rust/constants.md]
