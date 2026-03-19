@@ -151,9 +151,13 @@ impl DownstreamLifecycle_core {
         stdin.write_all(b"\n").await.map_err(|e| ProxyError_x::RelayBroken(e))?;
         stdin.flush().await.map_err(|e| ProxyError_x::RelayBroken(e))?;
 
-        // Read initialize response
-        let line = stdout.next_line()
+        // Read initialize response (with 5s timeout for slow servers)
+        let line = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            stdout.next_line(),
+        )
             .await
+            .map_err(|_| ProxyError_x::InitializeFailed("initialize timeout (5s)".to_string()))?
             .map_err(|_| ProxyError_x::InitializeFailed("failed to read initialize response".to_string()))?;
 
         let _resp = match line {
@@ -196,9 +200,13 @@ impl DownstreamLifecycle_core {
         stdin.write_all(b"\n").await.map_err(|e| ProxyError_x::RelayBroken(e))?;
         stdin.flush().await.map_err(|e| ProxyError_x::RelayBroken(e))?;
 
-        // Read tools/list response
-        let line = stdout.next_line()
+        // Read tools/list response (with 5s timeout for slow servers)
+        let line = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            stdout.next_line(),
+        )
             .await
+            .map_err(|_| ProxyError_x::InitializeFailed("tools/list timeout (5s)".to_string()))?
             .map_err(|_| ProxyError_x::InitializeFailed("failed to read tools/list response".to_string()))?;
 
         let tools_resp = match line {

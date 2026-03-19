@@ -4,6 +4,16 @@
       "id": "gui-mcp",
       "binary": "C:/Users/mathi/bin/gui-mcp.exe",
       "args": []
+    },
+    {
+      "id": "rules",
+      "binary": "C:/Users/mathi/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0/LocalCache/local-packages/Python313/Scripts/rules-mcp.exe",
+      "args": []
+    },
+    {
+      "id": "rulestools",
+      "binary": "C:/Users/mathi/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0/LocalCache/local-packages/Python313/Scripts/rulestools-mcp.exe",
+      "args": []
     }
   ]
 }
