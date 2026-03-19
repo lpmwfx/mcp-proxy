@@ -30,7 +30,7 @@ async fn main() {
 
     let cli = Cli::parse();
 
-    tracing::info!("starting MCP multiplexer");
+    tracing::info!("starting mcp-proxy");
 
     let adapter = match cli.config {
         Some(path) => {
@@ -38,7 +38,6 @@ async fn main() {
             adapter::ProxyAdapter_adp::new().with_config(path)
         }
         None => {
-            // Try default config
             let default_path = PathBuf::from("mcp-servers.json");
             if default_path.exists() {
                 tracing::info!(config = ?default_path, "using default config file");
@@ -51,9 +50,7 @@ async fn main() {
     };
 
     match adapter.run().await {
-        Ok(_) => {
-            tracing::info!("proxy shutdown");
-        }
+        Ok(_) => tracing::info!("proxy shutdown"),
         Err(e) => {
             tracing::error!(error = %e, "fatal error");
             std::process::exit(1);

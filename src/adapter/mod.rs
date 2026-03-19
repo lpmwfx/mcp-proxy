@@ -11,7 +11,10 @@ use tokio::sync::mpsc;
 
 use crate::core::{DownstreamLifecycle_core, McpServer_core, ServerRegistry_core};
 use crate::gateway::{ConfigGateway_gtw, UpstreamGateway_gtw, WatcherGateway_gtw};
-use crate::shared::{JsonRpcId_x, ProxyEvent_x, ProxyResult_x, INIT_TIMEOUT_DEFAULT_SECS, TOOL_CALL_TIMEOUT_DEFAULT_SECS};
+use crate::shared::{
+    JsonRpcId_x, ProxyEvent_x, ProxyResult_x,
+    INIT_TIMEOUT_DEFAULT_SECS, TOOL_CALL_TIMEOUT_DEFAULT_SECS,
+};
 use self::handlers::handle_tools_call;
 
 /// struct `ProxyAdapter_adp` — MCP protocol hub.
@@ -48,43 +51,42 @@ impl ProxyAdapter_adp {
 
     /// fn `run` — main event loop: load config, read requests, dispatch, respond, cleanup.
     pub async fn run(mut self) -> ProxyResult_x<ExitCode> {
-        // Load config if provided
+        // Load config and spawn all servers
         if let Some(ref config_path) = self.config_path {
             if ConfigGateway_gtw::config_exists(config_path) {
                 match ConfigGateway_gtw::load_config(config_path) {
                     Ok(config) => {
-                        // Update timeout values from config
-                        if let Some(init_timeout) = config.init_timeout_secs {
-                            self.init_timeout_secs = init_timeout;
+                        if let Some(t) = config.init_timeout_secs {
+                            self.init_timeout_secs = t;
                         }
-                        if let Some(tool_timeout) = config.tool_call_timeout_secs {
-                            self.tool_call_timeout_secs = tool_timeout;
+                        if let Some(t) = config.tool_call_timeout_secs {
+                            self.tool_call_timeout_secs = t;
                         }
 
-                        let num_servers = config.servers.len();
-                        tracing::info!(count = num_servers, "loading servers from config");
-                        for server_cfg in config.servers {
+                        tracing::info!(count = config.servers.len(), "loading servers from config");
+                        for server_cfg in &config.servers {
+                            if server_cfg.binary.is_empty() {
+                                continue;
+                            }
                             let binary = Path::new(&server_cfg.binary);
                             match DownstreamLifecycle_core::spawn_and_initialize(&server_cfg.id, binary, &server_cfg.args, self.init_timeout_secs, self.event_tx.clone()).await {
                                 Ok(mut server) => {
                                     let id = server.id.clone();
-                                    // Spawn watcher and store handle
-                                    let binary_path = server.binary.clone();
+                                    let bp = server.binary.clone();
                                     let sid = server.id.clone();
                                     let tx = self.event_tx.clone();
                                     let handle = tokio::spawn(async move {
-                                        WatcherGateway_gtw::watch_binary(sid, &binary_path, tx).await;
+                                        WatcherGateway_gtw::watch_binary(sid, &bp, tx).await;
                                     });
                                     server.watcher_handle = Some(handle);
                                     self.registry.insert(server);
-                                    tracing::info!(server = %id, "server loaded and initialized");
+                                    tracing::info!(server = %id, "loaded");
                                 }
                                 Err(e) => {
-                                    tracing::error!(server = %server_cfg.id, error = %e, "failed to load server");
+                                    tracing::error!(server = %server_cfg.id, error = %e, "failed to load");
                                 }
                             }
                         }
-                        // Send list_changed after auto-load
                         if !self.registry.server_list().is_empty() {
                             let _ = self.upstream.send_notification(McpServer_core::tools_list_changed_notification()).await;
                         }
@@ -99,14 +101,13 @@ impl ProxyAdapter_adp {
         // Main event loop
         loop {
             tokio::select! {
-                // Handle upstream JSON-RPC requests
                 req_result = self.upstream.read_request() => {
                     match req_result {
-                        Ok(None) => break, // EOF
+                        Ok(None) => break,
                         Ok(Some(r)) => {
                             let req_id = match r.id {
                                 Some(id) => id,
-                                None => continue, // Skip notifications
+                                None => continue,
                             };
                             let response = self.dispatch(req_id.clone(), &r.method, r.params).await;
                             if let Err(e) = self.upstream.send_response(response).await {
@@ -120,42 +121,34 @@ impl ProxyAdapter_adp {
                         }
                     }
                 }
-                // Handle internal events (binary changed, process died, etc)
+
                 event = self.event_rx.recv() => {
                     match event {
                         Some(ProxyEvent_x::BinaryChanged(server_id)) => {
-                            tracing::info!(server = %server_id, "binary modified, restarting server");
-                            // Auto-restart the server
-                            if let Some(old_server) = self.registry.remove(&server_id) {
-                                match DownstreamLifecycle_core::restart(old_server, self.init_timeout_secs, self.event_tx.clone()).await {
+                            tracing::info!(server = %server_id, "binary modified, restarting");
+                            if let Some(old) = self.registry.remove(&server_id) {
+                                match DownstreamLifecycle_core::restart(old, self.init_timeout_secs, self.event_tx.clone()).await {
                                     Ok(mut new_server) => {
-                                        // Respawn watcher
-                                        let binary_path = new_server.binary.clone();
+                                        let bp = new_server.binary.clone();
                                         let sid = new_server.id.clone();
                                         let tx = self.event_tx.clone();
                                         let handle = tokio::spawn(async move {
-                                            WatcherGateway_gtw::watch_binary(sid, &binary_path, tx).await;
+                                            WatcherGateway_gtw::watch_binary(sid, &bp, tx).await;
                                         });
                                         new_server.watcher_handle = Some(handle);
                                         self.registry.insert(new_server);
-                                        // Send list_changed notification
-                                        let _ = self.upstream
-                                            .send_notification(McpServer_core::tools_list_changed_notification())
-                                            .await;
-                                        tracing::info!(server = %server_id, "server restarted successfully");
+                                        let _ = self.upstream.send_notification(McpServer_core::tools_list_changed_notification()).await;
+                                        tracing::info!(server = %server_id, "restarted");
                                     }
-                                    Err(e) => {
-                                        tracing::error!(server = %server_id, error = %e, "failed to restart server");
-                                    }
+                                    Err(e) => tracing::error!(server = %server_id, error = %e, "restart failed"),
                                 }
                             }
                         }
 
                         Some(ProxyEvent_x::ProcessDied(server_id)) => {
-                            tracing::warn!(server = %server_id, "downstream process died unexpectedly");
+                            tracing::warn!(server = %server_id, "process died");
                             if let Some(server) = self.registry.remove(&server_id) {
                                 let _ = self.upstream.send_notification(McpServer_core::tools_list_changed_notification()).await;
-
                                 let crash_count = server.crash_count + 1;
                                 let backoff = Duration::from_secs(2u64.pow(crash_count.min(4)));
                                 let tx = self.event_tx.clone();
@@ -163,27 +156,21 @@ impl ProxyAdapter_adp {
                                 let args = server.args.clone();
                                 let id = server_id.clone();
                                 let init_timeout = self.init_timeout_secs;
-
                                 tokio::spawn(async move {
                                     tokio::time::sleep(backoff).await;
-                                    match DownstreamLifecycle_core::spawn_and_initialize(
-                                        &id, &binary, &args, init_timeout, tx.clone()
-                                    ).await {
+                                    match DownstreamLifecycle_core::spawn_and_initialize(&id, &binary, &args, init_timeout, tx.clone()).await {
                                         Ok(mut new_server) => {
                                             new_server.crash_count = crash_count;
-                                            // Spawn watcher
-                                            let binary_path = new_server.binary.clone();
+                                            let bp = new_server.binary.clone();
                                             let sid = new_server.id.clone();
                                             let wtx = tx.clone();
-                                            let whandle = tokio::spawn(async move {
-                                                WatcherGateway_gtw::watch_binary(sid, &binary_path, wtx).await;
+                                            let wh = tokio::spawn(async move {
+                                                WatcherGateway_gtw::watch_binary(sid, &bp, wtx).await;
                                             });
-                                            new_server.watcher_handle = Some(whandle);
+                                            new_server.watcher_handle = Some(wh);
                                             let _ = tx.send(ProxyEvent_x::RespawnDone(id, Box::new(new_server))).await;
                                         }
-                                        Err(e) => {
-                                            tracing::error!(server = %id, error = %e, "crash recovery respawn failed");
-                                        }
+                                        Err(e) => tracing::error!(server = %id, error = %e, "respawn failed"),
                                     }
                                 });
                             }
@@ -192,25 +179,23 @@ impl ProxyAdapter_adp {
                         Some(ProxyEvent_x::RespawnDone(server_id, new_server)) => {
                             self.registry.insert(*new_server);
                             let _ = self.upstream.send_notification(McpServer_core::tools_list_changed_notification()).await;
-                            tracing::info!(server = %server_id, "server respawned successfully");
+                            tracing::info!(server = %server_id, "respawned");
                         }
 
-                        None => break, // Channel closed
+                        None => break,
                     }
                 }
 
                 _ = tokio::signal::ctrl_c() => {
-                    tracing::info!("shutdown signal received, stopping");
+                    tracing::info!("shutdown signal");
                     break;
                 }
             }
         }
 
-        // Cleanup: shutdown all servers
         for server in self.registry.drain_all() {
             DownstreamLifecycle_core::shutdown(server).await;
         }
-
         Ok(ExitCode::SUCCESS)
     }
 
@@ -222,20 +207,16 @@ impl ProxyAdapter_adp {
         params: Option<Value>,
     ) -> crate::shared::JsonRpcResponse_x {
         match method {
-            "initialize" => McpServer_core::handle_initialize(id),
+            "initialize" => McpServer_core::handle_initialize(id, "mcp-tools"),
             "tools/list" => McpServer_core::handle_tools_list(id, &self.registry),
             "tools/call" => handle_tools_call(id, params, &mut self.registry, &mut self.upstream, &self.event_tx, self.init_timeout_secs, self.tool_call_timeout_secs).await,
-            "ping" => {
-                // Respond to ping
-                crate::shared::JsonRpcResponse_x {
-                    jsonrpc: "2.0".to_string(),
-                    id,
-                    result: Some(json!({})),
-                    error: None,
-                }
-            }
+            "ping" => crate::shared::JsonRpcResponse_x {
+                jsonrpc: "2.0".to_string(),
+                id,
+                result: Some(json!({})),
+                error: None,
+            },
             _ => McpServer_core::error_response(id, -32601, "Method not found"),
         }
     }
-
 }

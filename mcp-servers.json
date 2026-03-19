@@ -3,17 +3,24 @@
     {
       "id": "gui-mcp",
       "binary": "C:/Users/mathi/bin/gui-mcp.exe",
-      "args": []
+      "args": [],
+      "autoload": false,
+      "description": "Desktop GUI automation via Windows API"
     },
     {
       "id": "rules",
-      "binary": "C:/Users/mathi/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0/LocalCache/local-packages/Python313/Scripts/rules-mcp.exe",
-      "args": []
+      "binary": "C:/Users/mathi/.cargo/bin/rules-mcp.exe",
+      "args": [],
+      "autoload": true,
+      "description": "Project rules and conventions engine"
     },
     {
       "id": "rulestools",
-      "binary": "C:/Users/mathi/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0/LocalCache/local-packages/Python313/Scripts/rulestools-mcp.exe",
-      "args": []
+      "binary": "C:/Users/mathi/.cargo/bin/rulestools.exe",
+      "args": ["mcp-tools"],
+      "autoload": true,
+      "description": "Project management, issue tracking, scanning"
     }
-  ]
+  ],
+  "ipc_port": 19752
 }

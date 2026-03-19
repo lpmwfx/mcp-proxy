@@ -167,6 +167,8 @@ pub struct ServerConfig_x {
     pub binary: String,
     #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -73,15 +73,15 @@ impl McpServer_core {
         ]
     }
 
-    /// fn `handle_initialize` — returns proxy's initialization response.
-    pub fn handle_initialize(id: JsonRpcId_x) -> JsonRpcResponse_x {
+    /// fn `handle_initialize` — returns initialization response with given server name.
+    pub fn handle_initialize(id: JsonRpcId_x, server_name: &str) -> JsonRpcResponse_x {
         JsonRpcResponse_x {
             jsonrpc: "2.0".to_string(),
             id,
             result: Some(json!({
                 "protocolVersion": "2024-11-05",
                 "serverInfo": {
-                    "name": "mcp-proxy",
+                    "name": server_name,
                     "version": "0.1.0"
                 },
                 "capabilities": {

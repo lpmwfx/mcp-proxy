@@ -1,5 +1,60 @@
 # TODO — mcp-proxy
 
+## Phase: 6 (server-catalogue) — IN PROGRESS
+
+Begge modes bruger ProxyAdapter_adp-mønstret. Ingen ny adapter-type.
+--mode tools: nuværende proxy UDEN management tools, MED IPC listener
+--mode server: samme proxy-arkitektur, tools = servere fra config, IPC client
+
+### 6a: Config + shared types
+- [x] shared: Add `autoload: bool` (default true) til ServerConfig_x
+- [x] shared: Add `description: Option<String>` til ServerConfig_x
+- [x] shared: Add `ipc_port: Option<u16>` (default 19752) til ProxyConfig_x
+- [x] shared: Add IpcCommand_x (Load/Unload/Status) + IpcResponse_x typer
+- [x] Opdater mcp-servers.json med autoload + description
+- [x] cargo build ✓
+
+### 6b: IPC gateway (TCP localhost)
+- [x] gateway: IpcGateway_gtw — TCP listener (listen) + client (send_command)
+- [x] Protocol: JSON lines (request → response, then close)
+- [x] cargo build ✓
+
+### 6c: --mode tools (refaktor ProxyAdapter_adp)
+- [x] main.rs: Add `--mode` arg (server | tools, default tools)
+- [x] adapter: Gem alle ServerConfig_x i catalogue HashMap (fra config)
+- [x] adapter: Spawn kun autoload=true servere ved opstart
+- [x] adapter: Tilføj IPC listener til event loop (tokio::select!)
+- [x] adapter: IPC load → spawn server fra catalogue, send tools/list_changed
+- [x] adapter: IPC unload → shutdown server, send tools/list_changed
+- [x] adapter: IPC status → returnér liste af servere med running/stopped
+- [x] core: tools/list returnerer KUN downstream tools (ingen mcp/* management)
+- [x] cargo build ✓
+
+### 6d: --mode server (ProxyAdapter_adp genbrugt)
+- [x] adapter: Når mode=server: læs config, byg ét McpTool_x per server
+- [x] adapter: Tool name = server id, description fra config
+- [x] adapter: inputSchema: { action: "start"|"stop"|"status", default "start" }
+- [x] adapter: tools/call → IpcGateway_gtw::send_command → mcp-tools
+- [x] adapter: Returnér IPC response som tool result
+- [x] adapter: handle_initialize: serverInfo.name = "mcp-server"
+- [x] cargo build ✓
+
+### 6e: Wire + test
+- [x] cargo build (clean)
+- [x] Test --mode tools: autoload servere, IPC listener kører
+- [x] Test --mode server: viser server-tools i tools/list
+- [x] Test: mcp-server kalder tool → mcp-tools spawner server (gui-mcp: 15 tools)
+- [x] Test: IPC status viser running/stopped korrekt
+
+### 6f: Install + production
+- [x] cargo build --release
+- [x] Kopiér binary til ~/bin/
+- [x] Opdater Claude Code system config (mcp-server + mcp-tools entries)
+- [x] Opdater mcp-servers.json med descriptions + autoload flags
+- [ ] Session restart + production test
+
+# --- DONES ---
+
 ## Phase: 4 (config-and-restart) — COMPLETE
 
 ### 4a: Config file loading

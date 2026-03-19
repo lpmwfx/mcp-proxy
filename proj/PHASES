@@ -6,6 +6,23 @@
 
 # --- DONES ---
 
+- phase: 6
+  id: simplify
+  title: "Config cleanup + description field + ~/.mcp location"
+  milestone: "Config i ~/.mcp/mcp-servers.json, description felt, serverInfo.name=mcp-tools"
+  delivers:
+    - Config flyttes til ~/.mcp/mcp-servers.json (agnostisk, ikke bundet til Claude)
+    - description felt i ServerConfig_x (synlig i config, fremtidssikret)
+    - serverInfo.name = "mcp-tools" (bedre navn i /mcp)
+    - Servere med tom binary skippes (tillader metadata-entries i config)
+    - Catalogue/IPC-split droppet (Claude Code understøtter ikke mid-session tool refresh)
+  status: done
+  note: >
+    Phase 6 var oprindeligt planlagt som server-catalogue med on-demand IPC loading.
+    Implementeret og testet, men droppet fordi Claude Code ikke opdaterer
+    deferred tools mid-session (tools/list_changed bug #13646, #4118).
+    Hard cap: 128 tools. Tool Search håndterer skalering automatisk.
+
 - phase: 5
   id: polish
   title: "Fejlhåndtering og polish"
