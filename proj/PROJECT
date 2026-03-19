@@ -2,161 +2,170 @@
 
 ## Goal
 
-MCP-servere registreret i Claude Desktop/Code spawnes som child-processes.
-Når den underliggende Rust-binary ændrer sig (ny build, ny tool-liste), skal
-Claude genstarte for at opdage ændringerne — selv hvis MCP-wrapperen stadig kører.
-Dette er et per-server livscyklus-problem.
+Claude Code kræver restart for at opdage ændringer i MCP-servere.
+Med mange servere (globale + per-projekt) er det konstant friction.
 
-mcp-proxy er en tynd Tokio-baseret stdio-proxy der:
+mcp-proxy er en MCP multiplexer: én MCP-server som Claude ser,
+der dynamisk loader/unloader downstream MCP-servere uden restart.
+
+Kerneegenskaber:
 1. Holder den permanente stdio-forbindelse mod Claude (upstream)
-2. Spawner og watch'er den interne Rust-binary (downstream)
-3. Genstarter downstream ved binary-ændring eller crash
-4. Sender `notifications/tools/list_changed` upstream efter genstart
+2. Spawner multiple downstream MCP-servere som child-processes
+3. Aggregerer tools fra alle downstream-servere til ét samlet tool-sæt
+4. Router `tools/call` til den rigtige downstream server
+5. Eksponerer egne management-tools: load, unload, list, restart
+6. Sender `notifications/tools/list_changed` ved load/unload/restart
+7. Watcher binary-filer og auto-restarter ved ændringer
 
-Claude ser aldrig en disconnect. `list_changed` trigger en stille tool-refresh.
+Claude ser aldrig en disconnect. Servere kan komme og gå.
 
 ## Architecture
 
 ```
 Claude Code
-    │  stdio (persistent)
+    │  stdio (persistent, JSON-RPC)
     ▼
-[mcp-proxy]          ← Tokio async runtime
-    │  stdio (respawnable)
-    ▼
-[din-rust-app]       ← den faktiske MCP-implementering
+[mcp-proxy]                    ← Tokio async runtime, MCP-aware
+    │  parse/route JSON-RPC
+    ├── management tools       ← proxy/load, proxy/unload, proxy/list, proxy/restart
+    ├── [server-a]  stdio      ← downstream MCP-server
+    ├── [server-b]  stdio      ← downstream MCP-server
+    └── [server-c]  stdio      ← downstream MCP-server
 ```
 
-Fremtidig multi-app vision:
+### Upstream (Claude → proxy)
+
+Proxy'en er selv en MCP-server. Den håndterer:
+- `initialize` — svarer med proxy'ens capabilities
+- `tools/list` — returnerer proxy-tools + alle downstream tools samlet
+- `tools/call` — router til proxy-intern handler ELLER downstream server
+- Alle andre requests — error (proxy understøtter kun tools)
+
+### Downstream (proxy → servere)
+
+Hver downstream server:
+- Spawnes med piped stdin/stdout
+- Får sin egen `initialize` handshake fra proxy'en
+- Registrerer sine tools ved spawn (proxy kalder `tools/list`)
+- Modtager routede `tools/call` fra proxy'en
+- Kan restarts uafhængigt uden at påvirke andre servere
+
+### Tool routing
+
+Tools namespaceres med server-id prefix for at undgå kollisioner:
 ```
-                         ┌─── [app-a]  (unix socket)
-Claude --stdio--> [tokio]┤─── [app-b]  (unix socket)
-                         └─── [app-c]  (unix socket)
-```
-
-Rust-appene behøver ikke kende til MCP. De eksponerer en simpel IPC-kontrakt:
-```
-← list_tools()     → [{ name, description, schema }]
-← call_tool(name)  → result
-```
-
-Tokio-laget ejer al MCP-protokol-kompleksitet. Appene er rene.
-
-## Components
-
-| Komponent | Ansvar |
-|---|---|
-| `proxy` task | Relay stdin → downstream, downstream stdout → upstream |
-| `watcher` task | `notify` crate — watch binary path for `Modify` events |
-| `supervisor` task | Spawn/respawn downstream process via `tokio::process::Command` |
-| `notifier` task | Send `notifications/tools/list_changed` til upstream efter respawn |
-
-### Tokio task-graf
-
-```
-main
-├── proxy_upstream_to_downstream   (tokio::spawn)
-├── proxy_downstream_to_upstream   (tokio::spawn)
-├── watcher                        (tokio::spawn)
-└── supervisor                     ← koordinator
-        ↑ channel fra watcher (binary changed / process died)
-        ↓ channel til notifier (respawn done)
+downstream server "git-tools" eksponerer: commit, diff, status
+→ Claude ser: git-tools::commit, git-tools::diff, git-tools::status
 ```
 
-Alle tasks kommunikerer via `tokio::sync::mpsc` channels.
-Supervisor holder `tokio::process::Child` handle og er eneste owner.
-
-## Graceful respawn-sekvens
-
+Proxy-egne tools har prefix `proxy/`:
 ```
-1. watcher detekterer binary Modify event
-2. → mpsc signal til supervisor
-3. supervisor: terminate downstream child (platform-specific)
-4. supervisor: await child exit (timeout → force kill)
-5. supervisor: spawn ny child
-6. supervisor: await downstream "initialized" svar
-7. supervisor: signal notifier
-8. notifier: skriv list_changed til upstream stdout
+proxy/load, proxy/unload, proxy/list, proxy/restart
 ```
 
-## list_changed payload
+### list_changed flow
 
+```
+1. Claude kalder proxy/load med server config
+2. Proxy spawner downstream, sender initialize, kalder tools/list
+3. Proxy tilføjer server-tools til sin samlede tool-liste
+4. Proxy sender notifications/tools/list_changed til Claude
+5. Claude kalder tools/list → får opdateret liste inkl. ny server
+```
+
+Samme flow for unload (fjern tools) og restart (refresh tools).
+
+## Management tools
+
+### proxy/load
 ```json
-{
-  "jsonrpc": "2.0",
-  "method": "notifications/tools/list_changed"
-}
+{ "binary": "/path/to/server", "args": ["--flag"], "id": "my-server" }
 ```
+Spawn server, initialize, hent tools, send list_changed.
 
-Sendes upstream via stdout umiddelbart efter downstream er oppe og har svaret på `initialize`.
+### proxy/unload
+```json
+{ "id": "my-server" }
+```
+Kill server, fjern tools, send list_changed.
 
-## Konfiguration i Claude
+### proxy/list
+Returnerer liste af kørende servere med id, binary, tool-count, uptime.
 
+### proxy/restart
+```json
+{ "id": "my-server" }
+```
+Kill → respawn → refresh tools → list_changed.
+
+## Konfiguration
+
+### Claude Code config (eneste registrering)
 ```json
 {
   "mcpServers": {
-    "min-server": {
-      "command": "/path/to/mcp-proxy",
-      "args": ["/path/to/min-rust-app"]
+    "proxy": {
+      "command": "mcp-proxy.exe",
+      "args": ["--config", "mcp-servers.json"]
     }
   }
 }
 ```
 
-Proxyen tager binary-stien som første argument. Øvrige args videresendes til downstream.
+### mcp-servers.json (valgfri auto-load ved start)
+```json
+{
+  "servers": [
+    { "id": "git-tools", "binary": "/path/to/git-tools.exe", "args": [] },
+    { "id": "db-tools",  "binary": "/path/to/db-tools.exe",  "args": ["--port", "5432"] }
+  ]
+}
+```
+
+Servere kan også loades dynamisk via `proxy/load` uden config-fil.
 
 ## Stack
 
 - Language: Rust 2024
 - Runtime: tokio (async, full features)
 - File watching: notify 6
-- Serialization: serde + serde_json (kun til list_changed payload)
+- Serialization: serde + serde_json (JSON-RPC parsing + tool routing)
 - CLI args: clap 4
-- Type: CLI (single-crate, MCP stdio proxy)
+- Type: CLI (single-crate, MCP multiplexer)
 
 ## Structure
 
 - src/main.rs: Entry point — tokio runtime, clap args
 - src/adapter/: _adp hub — coordinates all layers
-- src/core/: _core — supervisor, watcher, respawn logic
-- src/gateway/: _gtw — IO: process spawn, file watch, stdio relay
+- src/core/: _core — MCP protocol, tool registry, server lifecycle
+- src/gateway/: _gtw — IO: process spawn, file watch, JSON-RPC read/write
 - src/pal/: _pal — platform abstraction (process termination)
-- src/shared/: _x — errors, results, shared traits
-- doc/: arkitekturdokumentation (kilde)
+- src/shared/: _x — errors, results, shared types
 - proj/: projekt-tracking
-
-## Method
-
-- Workflow: PROJECT → PHASES → TODO → code → test → DONE
-- Testing: cargo test
 
 ## Patterns
 
-- Proxy er JSON-agnostisk — relay'er bytes, konstruerer kun `list_changed`
-- Alle tokio tasks kommunikerer via `tokio::sync::mpsc` channels
-- Supervisor er eneste owner af `tokio::process::Child` handle
-- Graceful respawn: terminate → timeout → force kill → spawn ny → await initialized → list_changed
-- Ingen tung MCP-SDK — proxyen er ~150 linjer, ingen forretningslogik
+- Proxy parser JSON-RPC for routing, men manipulerer ikke payloads
+- Downstream tools namespaceres med server-id prefix
+- Hver downstream server har isoleret lifecycle (crash påvirker ikke andre)
+- Proxy-egne tools (proxy/*) håndteres internt, aldrig routet downstream
+- `list_changed` sendes kun når den aggregerede tool-liste faktisk ændrer sig
+- Config-fil er valgfri — alt kan styres runtime via proxy/ tools
 
 ## Scope
 
-- Løser hot-reload af enkelt-servers ved code/binary ændringer
-- Løser IKKE add/remove af servere til Claude uden restart af Claude selv
-- Bevidst minimalt
-
-## Fremtidigt
-
-- Unix socket transport som alternativ til stdio-relay (bedre for debugging)
-- Health-check ping til downstream for crash-detection uden file-watch
-- Shared proxy-binary der konfigureres via argument (samme binary, mange servers)
-- Multi-app: apps registrerer sig hos proxyen ved opstart (service mesh i miniformat)
+- MCP multiplexer med dynamisk load/unload af downstream servere
+- Hot-reload ved binary-ændring (file watcher)
+- Kun stdio transport (ingen SSE/HTTP)
+- Kun Claude Code (ikke Claude Desktop for nu)
 
 ## Current
 
-- phase: 2
-- id: proxy-core
-- status: development
+- phase: 3
+- id: mcp-protocol
+- status: planning
 
 ## History
 
 - phase 1 (setup): Project scaffolded, builds clean
+- phase 2 (proxy-core): Stdio relay + supervisor for single downstream

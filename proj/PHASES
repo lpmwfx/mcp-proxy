@@ -2,18 +2,43 @@
 
 ## Active
 
-- phase: 2
-  id: proxy-core
-  title: "Stdio relay + supervisor"
-  milestone: "Proxy relay'er stdin/stdout mellem Claude og downstream process"
+- phase: 3
+  id: mcp-protocol
+  title: "MCP protocol + multiplexer"
+  milestone: "Proxy er selv en MCP-server, kan spawne og route til multiple downstream servere"
   delivers:
-    - proxy_upstream_to_downstream task
-    - proxy_downstream_to_upstream task
-    - supervisor task (spawn/respawn downstream)
-    - CLI arg parsing (binary path + args)
+    - JSON-RPC parser (upstream read loop)
+    - MCP initialize/tools_list/tools_call handlers
+    - Downstream server registry (spawn, initialize, collect tools)
+    - Tool routing: namespace prefix → downstream dispatch
+    - proxy/load, proxy/unload, proxy/list tools
+    - notifications/tools/list_changed upstream
   status: active
 
 ## Planned
+
+- phase: 4
+  id: config-and-restart
+  title: "Config file + restart + watcher"
+  milestone: "Auto-load servere fra config, restart ved crash/binary-ændring"
+  delivers:
+    - mcp-servers.json config parser
+    - Auto-load servere ved proxy start
+    - proxy/restart tool
+    - Binary file watcher (notify crate)
+    - Auto-restart ved binary Modify event
+  status: planned
+
+- phase: 5
+  id: polish
+  title: "Fejlhåndtering og polish"
+  milestone: "Produktionsklar proxy"
+  delivers:
+    - Logging (eprintln structured)
+    - Crash-recovery (downstream dies → remove tools → list_changed)
+    - Timeout-konfiguration
+    - Graceful shutdown
+  status: planned
 
 # --- DONES ---
 
@@ -27,34 +52,13 @@
     - Scanner integration
   status: done
 
-- phase: 3
-  id: watcher
-  title: "Binary file watcher"
-  milestone: "Proxy detekterer binary-ændring og trigger respawn"
+- phase: 2
+  id: proxy-core
+  title: "Stdio relay + supervisor"
+  milestone: "Proxy relay'er stdin/stdout mellem Claude og downstream process"
   delivers:
-    - watcher task (notify crate, Modify events)
-    - mpsc channel watcher → supervisor
-    - Graceful respawn sekvens (SIGTERM → timeout → SIGKILL)
-  status: planned
-
-- phase: 4
-  id: list-changed
-  title: "list_changed notification"
-  milestone: "Claude re-fetcher tools automatisk efter respawn"
-  delivers:
-    - notifier task
-    - list_changed JSON payload upstream efter respawn
-    - Await downstream initialized før notify
-  status: planned
-
-- phase: 5
-  id: polish
-  title: "Fejlhåndtering og polish"
-  milestone: "Produktionsklar proxy"
-  delivers:
-    - Logging (tracing)
-    - Crash-recovery edge cases
-    - Timeout-konfiguration
-  status: planned
-
-# --- DONES ---
+    - ProcessGateway_gtw (spawn downstream)
+    - RelayGateway_gtw (tokio::io::copy)
+    - ProxyAdapter_adp (dual relay with tokio::join)
+    - CLI arg parsing (binary path + args)
+  status: done

@@ -1,25 +1,58 @@
 # TODO — mcp-proxy
 
-## Phase: 2 (proxy-core)
+## Phase: 3 (mcp-protocol)
 
-- [ ] shared/_x: ProxyEvent_x enum (BinaryChanged, ProcessDied, RespawnDone)
-- [ ] shared/_x: ProxyError_x error type
-- [ ] pal/_pal: ProcessPal_pal trait (terminate, force_kill)
-- [ ] pal/_pal: Windows impl af ProcessPal_pal
-- [ ] gateway/_gtw: ProcessGateway_gtw — spawn downstream, stdio pipes
-- [ ] gateway/_gtw: RelayGateway_gtw — upstream↔downstream byte relay
-- [ ] gateway/_gtw: WatcherGateway_gtw — notify binary Modify events
-- [ ] core/_core: SupervisorCore_core — respawn-sekvens logic
-- [ ] adapter/_adp: ProxyAdapter_adp — wire supervisor + gateway + channels
-- [ ] main.rs: tokio runtime, clap args → adapter
-- [ ] Verify build: `cargo build`
-- [ ] Test: spawn echo-server som downstream, verify relay
+### 3a: JSON-RPC upstream read loop
+- [ ] shared/_x: JsonRpcRequest_x, JsonRpcResponse_x types (serde)
+- [ ] gateway/_gtw: UpstreamGateway_gtw — BufReader på stdin, læs linje-for-linje, parse JSON-RPC
+- [ ] gateway/_gtw: UpstreamWriter_gtw — Mutex<Stdout>, skriv JSON-RPC + newline + flush
+
+### 3b: MCP server (proxy selv)
+- [ ] core/_core: McpServer_core — handler for initialize, tools/list, tools/call
+- [ ] core/_core: initialize handler — returnér server info + capabilities (tools)
+- [ ] core/_core: tools/list handler — returnér proxy-tools + aggregerede downstream tools
+- [ ] core/_core: tools/call handler — route til intern handler eller downstream
+
+### 3c: Downstream server registry
+- [ ] shared/_x: DownstreamServer_x struct (id, binary, args, child, tools)
+- [ ] core/_core: ServerRegistry_core — HashMap<String, DownstreamServer_x>
+- [ ] gateway/_gtw: spawn downstream, send initialize, kald tools/list, gem tools
+- [ ] gateway/_gtw: send routet tools/call til downstream, læs response
+
+### 3d: Tool routing
+- [ ] core/_core: tool namespace — "server-id::tool-name" mapping
+- [ ] core/_core: route tools/call — strip prefix, find server, dispatch
+
+### 3e: Proxy management tools
+- [ ] core/_core: proxy/load — spawn server, collect tools, list_changed
+- [ ] core/_core: proxy/unload — kill server, remove tools, list_changed
+- [ ] core/_core: proxy/list — returnér kørende servere
+
+### 3f: list_changed notification
+- [ ] adapter/_adp: send notifications/tools/list_changed til upstream efter load/unload
+
+### 3g: Wire + test
+- [ ] adapter/_adp: main loop — read upstream → route → respond
+- [ ] main.rs: opdater CLI (--config flag valgfri)
+- [ ] Verify build: cargo build
+- [ ] Test: spawn test-server, verify tools/list aggregering
+- [ ] Test: proxy/load + proxy/unload flow
 
 # --- DONES ---
+
+## Phase: 2 (proxy-core)
+
+- [x] shared/_x: ProxyEvent_x, ProxyError_x, ProxyResult_x
+- [x] pal/_pal: ProcessPal_pal trait + WindowsProcessPal_pal
+- [x] gateway/_gtw: ProcessGateway_gtw, RelayGateway_gtw, WatcherGateway_gtw (stub)
+- [x] core/_core: SupervisorCore_core
+- [x] adapter/_adp: ProxyAdapter_adp (dual relay with tokio::join)
+- [x] main.rs: #[tokio::main], CLI wiring
+- [x] Verify build + test relay
 
 ## Phase: 1 (setup)
 
 - [x] Define Goal in proj/PROJECT
 - [x] Define phases in proj/PHASES
-- [x] Opdater Cargo.toml med dependencies (tokio, notify, serde, serde_json)
-- [x] Verify build: `cargo build`
+- [x] Opdater Cargo.toml med dependencies
+- [x] Verify build: cargo build
