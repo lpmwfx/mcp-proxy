@@ -7,6 +7,16 @@ use std::path::PathBuf;
 use tokio::io::BufReader;
 use tokio::process::{Child, ChildStdin, ChildStdout};
 
+// ============================================================================
+// Timeout Constants
+// ============================================================================
+
+/// Default timeout for server initialization (seconds).
+pub const INIT_TIMEOUT_DEFAULT_SECS: u64 = 5;
+
+/// Default timeout for tool calls (seconds).
+pub const TOOL_CALL_TIMEOUT_DEFAULT_SECS: u64 = 30;
+
 #[derive(Debug, Clone)]
 /// enum `ProxyEvent_x`.
 pub enum ProxyEvent_x {
@@ -158,4 +168,10 @@ pub struct ServerConfig_x {
 /// struct `ProxyConfig_x` — top-level configuration (list of servers to auto-load).
 pub struct ProxyConfig_x {
     pub servers: Vec<ServerConfig_x>,
+    /// Timeout for server initialization in seconds (default: 5).
+    #[serde(default)]
+    pub init_timeout_secs: Option<u64>,
+    /// Timeout for tool calls in seconds (default: 30).
+    #[serde(default)]
+    pub tool_call_timeout_secs: Option<u64>,
 }

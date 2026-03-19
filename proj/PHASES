@@ -7,37 +7,27 @@
   title: "Fejlhåndtering og polish"
   milestone: "Produktionsklar proxy"
   delivers:
-    - Logging (eprintln structured)
     - Crash-recovery (downstream dies → remove tools → list_changed)
-    - Timeout-konfiguration
-    - Graceful shutdown
+    - Graceful shutdown (SIGTERM handling)
+    - Configurable timeout (make 5s tunable)
+    - Error resilience
   status: planning
-
-## Planned
-
-- phase: 5
-  id: polish
-  title: "Fejlhåndtering og polish"
-  milestone: "Produktionsklar proxy"
-  delivers:
-    - Logging (eprintln structured)
-    - Crash-recovery (downstream dies → remove tools → list_changed)
-    - Timeout-konfiguration
-    - Graceful shutdown
-  status: planned
 
 # --- DONES ---
 
 - phase: 4
   id: config-and-restart
-  title: "Config file + restart + watcher"
-  milestone: "Auto-load servere fra config, restart ved crash/binary-ændring"
+  title: "Config file + restart + watcher + logging + compartmentalization"
+  milestone: "Auto-load servere fra config, restart ved crash/binary-ændring, struktureret logging, compartmentaliseret tool-liste"
   delivers:
     - mcp-servers.json config parser
-    - Auto-load servere ved proxy start
-    - proxy/restart tool
+    - Auto-load gui-mcp, rules, rulestools ved proxy start
+    - mcp/load, mcp/unload, mcp/list, mcp/restart management tools
     - Binary file watcher (notify crate)
     - Auto-restart ved binary Modify event
+    - Structured logging (tracing crate → mcp-proxy.log)
+    - 5-second initialization timeout for slow Python servers
+    - Compartmentalized mcp/list output (tools grouped by server_id)
   status: done
 
 - phase: 1

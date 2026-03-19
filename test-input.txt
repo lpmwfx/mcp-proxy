@@ -1,0 +1,4 @@
+﻿{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","clientInfo":{"name":"test","version":"0"},"capabilities":{}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mcp/load","arguments":{"id":"test","binary":"./test-server.exe","args":[]}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/list","params":null}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"mcp/list","arguments":{}}}

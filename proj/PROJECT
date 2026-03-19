@@ -169,3 +169,53 @@ Servere kan også loades dynamisk via `proxy/load` uden config-fil.
 
 - phase 1 (setup): Project scaffolded, builds clean
 - phase 2 (proxy-core): Stdio relay + supervisor for single downstream
+
+## Future Enhancements: Tool Organization at Scale
+
+When the proxy exposes 100+ tools across multiple servers, tool discovery becomes friction.
+Several patterns exist to organize tools without overwhelming Claude's context:
+
+### Pattern 1: Hierarchical Tool Categories (Lazy MCP)
+Expose meta-tools that let Claude browse a tool tree on-demand:
+- `proxy/browse_tools(category: String)` — list tools in a category
+- `proxy/search_tools(query: String)` — search tools by keyword or regex
+
+**Benefit**: Only needed tools are loaded; ~8.7K tokens vs 77K with 50+ flat tools.
+**Ref**: https://github.com/voicetreelab/lazy-mcp
+
+### Pattern 2: Tool Groups / Toolsets
+Each downstream server declares which tools belong to a group:
+```json
+{ "id": "github", "binary": "...", "toolsets": ["issues", "pulls", "discussions"] }
+```
+Claude or proxy can then selectively enable/disable tool groups.
+
+**Benefit**: Cleaner context, LLM tool-choice accuracy improves.
+**Ref**: https://github.com/github/github-mcp-server
+
+### Pattern 3: MCP Tool Search (Claude Code Native)
+When MCP tool descriptions exceed 10% of context window, Claude Code automatically:
+- Defers tool definitions
+- Uses a `tool_search` meta-tool to discover tools on-demand
+- Loads only searched tools into context
+
+**Benefit**: Works automatically; no proxy changes needed; ~95% context saved.
+**Ref**: Claude Code Tool Search (built-in when ENABLE_TOOL_SEARCH=true)
+
+### Pattern 4: Server Scoping
+Dynamically load/unload entire downstream servers based on project context:
+```
+Session A: proxy/load("github-tools")
+Session B: proxy/load("database-tools")
+```
+Only relevant tools are ever exposed.
+
+**Benefit**: Minimal, focused tool-set per workflow.
+
+### Recommendation for mcp-proxy
+Consider implementing **Pattern 1 (Lazy Browsing)** when:
+- More than 3-4 downstream servers are configured simultaneously
+- Tools exceed 80-100 across all servers
+- User requests tool discovery/categorization
+
+Start with Phase 5 (stability) first; revisit in a future phase if scaling becomes needed.
