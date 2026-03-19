@@ -2,18 +2,20 @@
 
 ## Active
 
+*Ingen aktiv fase — mcp-proxy er produktionsklar*
+
+# --- DONES ---
+
 - phase: 5
   id: polish
   title: "Fejlhåndtering og polish"
   milestone: "Produktionsklar proxy"
   delivers:
-    - Crash-recovery (downstream dies → remove tools → list_changed)
-    - Graceful shutdown (SIGTERM handling)
-    - Configurable timeout (make 5s tunable)
-    - Error resilience
-  status: planning
-
-# --- DONES ---
+    - Crash-recovery (downstream dies → remove tools → list_changed) ✓
+    - Graceful shutdown (SIGTERM/Ctrl+C handling) ✓
+    - Configurable timeout (init_timeout_secs, tool_call_timeout_secs) ✓
+    - Error resilience (exponential backoff, watcher cancellation) ✓
+  status: done
 
 - phase: 4
   id: config-and-restart

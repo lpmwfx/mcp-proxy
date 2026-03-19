@@ -161,9 +161,10 @@ Servere kan også loades dynamisk via `proxy/load` uden config-fil.
 
 ## Current
 
-- phase: 4
-- id: config-and-restart
+- phase: 5
+- id: polish
 - status: complete
+- milestone: Produktionsklar proxy med crash-recovery, graceful shutdown, configurable timeout
 
 ## History
 
