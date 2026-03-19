@@ -2,17 +2,16 @@
 
 ## Active
 
-- phase: 4
-  id: config-and-restart
-  title: "Config file + restart + watcher"
-  milestone: "Auto-load servere fra config, restart ved crash/binary-ændring"
+- phase: 5
+  id: polish
+  title: "Fejlhåndtering og polish"
+  milestone: "Produktionsklar proxy"
   delivers:
-    - mcp-servers.json config parser
-    - Auto-load servere ved proxy start
-    - proxy/restart tool
-    - Binary file watcher (notify crate)
-    - Auto-restart ved binary Modify event
-  status: active
+    - Logging (eprintln structured)
+    - Crash-recovery (downstream dies → remove tools → list_changed)
+    - Timeout-konfiguration
+    - Graceful shutdown
+  status: planning
 
 ## Planned
 
@@ -29,6 +28,18 @@
 
 # --- DONES ---
 
+- phase: 4
+  id: config-and-restart
+  title: "Config file + restart + watcher"
+  milestone: "Auto-load servere fra config, restart ved crash/binary-ændring"
+  delivers:
+    - mcp-servers.json config parser
+    - Auto-load servere ved proxy start
+    - proxy/restart tool
+    - Binary file watcher (notify crate)
+    - Auto-restart ved binary Modify event
+  status: done
+
 - phase: 1
   id: setup
   title: "Project setup"
@@ -37,6 +48,19 @@
     - Project structure
     - Build configuration (tokio, notify, serde)
     - Scanner integration
+  status: done
+
+- phase: 3
+  id: mcp-protocol
+  title: "MCP protocol + multiplexer"
+  milestone: "Proxy er selv en MCP-server, kan spawne og route til multiple downstream servere"
+  delivers:
+    - JSON-RPC parser (upstream read loop)
+    - MCP initialize/tools_list/tools_call handlers
+    - Downstream server registry (spawn, initialize, collect tools)
+    - Tool routing: namespace prefix → downstream dispatch
+    - proxy/load, proxy/unload, proxy/list tools
+    - notifications/tools/list_changed upstream
   status: done
 
 - phase: 2

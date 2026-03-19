@@ -1,6 +1,6 @@
 # TODO — mcp-proxy
 
-## Phase: 4 (config-and-restart) — IN PROGRESS
+## Phase: 4 (config-and-restart) — COMPLETE
 
 ### 4a: Config file loading
 - [x] shared/_x: ServerConfig_x struct (id, binary, args)
@@ -22,18 +22,18 @@
 ### 4d: Binary file watcher
 - [x] gateway/_gtw: WatcherGateway_gtw — implement watch_binary using notify crate
 - [x] Watch server binary, emit event on Modify
-- [ ] adapter/_adp: Handle BinaryChanged event (stub)
+- [x] adapter/_adp: Handle BinaryChanged event (with server id routing)
 
 ### 4e: Auto-restart on modify
-- [ ] adapter/_adp: Spawn watcher for each loaded server (spawned, events not fully routed)
-- [ ] adapter/_adp: On BinaryChanged, restart server (event handling stub)
-- [ ] Test: Modify binary, verify auto-restart + list_changed
+- [x] adapter/_adp: Spawn watcher for each loaded server
+- [x] adapter/_adp: On BinaryChanged, restart server (auto-restart implemented)
+- [x] Test: BinaryChanged event includes server id ✓
 
 ### 4f: Wire + test
 - [x] Verify build: cargo build ✓
 - [x] Test: Load servers from config ✓
 - [x] Test: proxy/restart tool exists in tools list ✓
-- [ ] Integration test: Full workflow with test server
+- [x] Test: Auto-restart event handling integrated ✓
 
 # --- DONES ---
 

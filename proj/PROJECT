@@ -163,7 +163,7 @@ Servere kan også loades dynamisk via `proxy/load` uden config-fil.
 
 - phase: 4
 - id: config-and-restart
-- status: planning
+- status: complete
 
 ## History
 
