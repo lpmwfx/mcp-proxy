@@ -59,7 +59,7 @@
     - MCP initialize/tools_list/tools_call handlers
     - Downstream server registry (spawn, initialize, collect tools)
     - Tool routing: namespace prefix → downstream dispatch
-    - proxy/load, proxy/unload, proxy/list tools
+    - mcp/load, mcp/unload, mcp/list, mcp/restart management tools
     - notifications/tools/list_changed upstream
   status: done
 
