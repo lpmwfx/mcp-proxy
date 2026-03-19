@@ -70,14 +70,87 @@ Updated 2026-03-19 to include mcp-proxy under "D:/REPO/RUSTPROJECTS/MCP/mcp-prox
 
 ---
 
+## CRITICAL: System-Wide vs Project-Level MCP Configuration
+
+### The Problem (FIXED 2026-03-19)
+
+Claude Code supports TWO levels of MCP configuration:
+
+1. **User MCPs** (System-wide in ~/.claude.json top level)
+   - Applies to ALL projects
+   - Loads MCP servers directly (no proxy intermediary)
+   - Creates direct connections: Claude → MCP server
+
+2. **Local MCPs** (Project-specific in ~/.claude.json under "projects")
+   - Applies ONLY to that project
+   - Can bypass User MCPs if specifically configured
+
+### What Was Wrong
+
+**BEFORE:** User MCPs contained gui-mcp, rules, rulestools
+```
+User MCPs (System):   gui-mcp, rules, rulestools (DIRECT)
+Local MCPs (Project): mcp-proxy (PROXY)
+                      ↓ routes to gui-mcp, rules, rulestools
+```
+Result: **Multiple parallel connections** — both direct AND through proxy!
+
+### The Solution (IMPLEMENTED)
+
+**AFTER:** User MCPs **completely empty**
+```
+User MCPs (System):   (EMPTY)
+Local MCPs (Project): mcp-proxy ONLY
+                      ↓ routes to all servers
+```
+Result: **All Claude instances forced through mcp-proxy** ✓
+
+### Configuration Applied
+
+**~/.claude.json top-level:** `"mcpServers": {}` (EMPTY)
+
+**~/.claude.json project section:**
+```json
+"D:/REPO/RUSTPROJECTS/MCP/mcp-proxy": {
+  "mcpServers": {
+    "mcp-proxy": {
+      "command": "D:/REPO/RUSTPROJECTS/MCP/mcp-proxy/target/release/mcp-proxy.exe",
+      "args": ["--config", "mcp-servers.json"]
+    }
+  }
+}
+```
+
+### Verification (Expected Status)
+
+When in mcp-proxy project, `mcp list` should show:
+
+```
+Local MCPs (project):  mcp-proxy ✔ connected
+User MCPs (system):    (none)
+```
+
+### Why This Matters
+
+With all servers forced through mcp-proxy:
+- ✓ Crash recovery applies to ALL servers
+- ✓ File watcher handles all binary updates
+- ✓ Tool call timeouts enforced uniformly
+- ✓ Issues MCP (via rulestools) gets ALL crash reports
+- ✓ Graceful shutdown works for everything
+- ✓ No orphaned direct connections
+
+---
+
 ## Verification
 
-To verify mcp-proxy is configured:
-1. In Claude Code, check that only "mcp-proxy" appears in available MCP servers
-2. Proxy should load gui-mcp, rules, rulestools from mcp-servers.json
-3. Check mcp-proxy.log for server initialization messages
-
-```bash
-tail -20 mcp-proxy.log
-# Should show: "server loaded and initialized [server=gui-mcp]" etc
-```
+To verify correct setup:
+1. Check `mcp list` output (see above)
+2. Proxy log should show 3 servers loaded:
+   ```bash
+   tail -20 mcp-proxy.log
+   # Should show: "server loaded and initialized [server=gui-mcp]"
+   #             "server loaded and initialized [server=rules]"
+   #             "server loaded and initialized [server=rulestools]"
+   ```
+3. User MCPs section should be empty/non-existent in ~/.claude.json
