@@ -134,3 +134,12 @@ Check `mcp-proxy.log` for server lifecycle events, crash recovery, and errors.
 - serde + serde_json (JSON-RPC)
 - clap 4 (CLI)
 - tracing (structured logging)
+
+
+---
+
+<!-- LARS:START -->
+<a href="https://lpmathiasen.com">
+  <img src="https://carousel.lpmathiasen.com/carousel.svg?slot=2" alt="Lars P. Mathiasen"/>
+</a>
+<!-- LARS:END -->
