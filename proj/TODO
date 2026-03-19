@@ -1,39 +1,39 @@
 # TODO — mcp-proxy
 
-## Phase: 4 (config-and-restart)
+## Phase: 4 (config-and-restart) — IN PROGRESS
 
 ### 4a: Config file loading
-- [ ] shared/_x: ServerConfig_x struct (id, binary, args)
-- [ ] shared/_x: ProxyConfig_x struct (Vec<ServerConfig_x>)
-- [ ] Add serde support to ProxyConfig_x, ServerConfig_x
-- [ ] gateway/_gtw: ConfigGateway_gtw — load mcp-servers.json, parse JSON
-- [ ] main.rs: Accept optional --config flag (default: mcp-servers.json)
+- [x] shared/_x: ServerConfig_x struct (id, binary, args)
+- [x] shared/_x: ProxyConfig_x struct (Vec<ServerConfig_x>)
+- [x] Add serde support to ProxyConfig_x, ServerConfig_x
+- [x] gateway/_gtw: ConfigGateway_gtw — load mcp-servers.json, parse JSON
+- [x] main.rs: Accept optional --config flag (default: mcp-servers.json)
 
 ### 4b: Auto-load on startup
-- [ ] adapter/_adp: load_config() — read file, auto-load each server
-- [ ] adapter/_adp: Run load_config() before main loop
-- [ ] Test: Load servers from config on startup
+- [x] adapter/_adp: load_config() — read file, auto-load each server
+- [x] adapter/_adp: Run load_config() before main loop
+- [x] Test: Load servers from config on startup ✓
 
 ### 4c: proxy/restart tool
-- [ ] core/_core: McpServer_core — add proxy/restart to tools list
-- [ ] adapter/_adp: handle_proxy_restart() — kill and re-spawn server
-- [ ] adapter/_adp: Send list_changed after restart
+- [x] core/_core: McpServer_core — add proxy/restart to tools list
+- [x] adapter/_adp: handle_proxy_restart() — kill and re-spawn server
+- [x] adapter/_adp: Send list_changed after restart
 
 ### 4d: Binary file watcher
-- [ ] gateway/_gtw: WatcherGateway_gtw — implement watch_binary using notify crate
-- [ ] Watch server binary, emit event on Modify
-- [ ] adapter/_adp: Handle BinaryChanged event
+- [x] gateway/_gtw: WatcherGateway_gtw — implement watch_binary using notify crate
+- [x] Watch server binary, emit event on Modify
+- [ ] adapter/_adp: Handle BinaryChanged event (stub)
 
 ### 4e: Auto-restart on modify
-- [ ] adapter/_adp: Spawn watcher for each loaded server
-- [ ] adapter/_adp: On BinaryChanged, restart server
+- [ ] adapter/_adp: Spawn watcher for each loaded server (spawned, events not fully routed)
+- [ ] adapter/_adp: On BinaryChanged, restart server (event handling stub)
 - [ ] Test: Modify binary, verify auto-restart + list_changed
 
 ### 4f: Wire + test
-- [ ] Verify build: cargo build
-- [ ] Test: Load servers from config
-- [ ] Test: proxy/restart tool
-- [ ] Test: Auto-restart on binary change
+- [x] Verify build: cargo build ✓
+- [x] Test: Load servers from config ✓
+- [x] Test: proxy/restart tool exists in tools list ✓
+- [ ] Integration test: Full workflow with test server
 
 # --- DONES ---
 

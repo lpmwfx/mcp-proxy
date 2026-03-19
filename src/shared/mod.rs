@@ -7,12 +7,12 @@ use std::path::PathBuf;
 use tokio::io::BufReader;
 use tokio::process::{Child, ChildStdin, ChildStdout};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// enum `ProxyEvent_x`.
 pub enum ProxyEvent_x {
-    BinaryChanged,
-    ProcessDied,
-    RespawnDone,
+    BinaryChanged(String), // server id
+    ProcessDied(String),   // server id
+    RespawnDone(String),   // server id
 }
 
 #[derive(Debug)]

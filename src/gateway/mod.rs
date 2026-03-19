@@ -49,7 +49,7 @@ pub struct WatcherGateway_gtw;
 
 impl WatcherGateway_gtw {
     /// fn `watch_binary` — watches a binary file for modifications.
-    pub async fn watch_binary(path: &Path, tx: mpsc::Sender<ProxyEvent_x>) {
+    pub async fn watch_binary(server_id: String, path: &Path, tx: mpsc::Sender<ProxyEvent_x>) {
         use notify::{Watcher, RecursiveMode, Result as NotifyResult};
         use std::sync::mpsc as sync_mpsc;
         use std::sync::Arc;
@@ -86,9 +86,9 @@ impl WatcherGateway_gtw {
             }
         });
 
-        // Forward events to async channel
+        // Forward events to async channel (include server id)
         while let Ok(()) = rx_notify.recv() {
-            let _ = tx.send(ProxyEvent_x::BinaryChanged).await;
+            let _ = tx.send(ProxyEvent_x::BinaryChanged(server_id.clone())).await;
         }
 
         should_stop.store(true, Ordering::Relaxed);

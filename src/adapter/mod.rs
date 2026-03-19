@@ -52,9 +52,10 @@ impl ProxyAdapter_adp {
                                     let id = server.id.clone();
                                     // Spawn watcher for this server
                                     let tx = self.event_tx.clone();
+                                    let server_id = id.clone();
                                     let binary_path = binary.to_path_buf();
                                     tokio::spawn(async move {
-                                        WatcherGateway_gtw::watch_binary(&binary_path, tx).await;
+                                        WatcherGateway_gtw::watch_binary(server_id, &binary_path, tx).await;
                                     });
                                     self.registry.insert(server);
                                     eprintln!("mcp-proxy: loaded server: {}", id);
@@ -103,16 +104,30 @@ impl ProxyAdapter_adp {
                 // Handle internal events (binary changed, process died, etc)
                 event = self.event_rx.recv() => {
                     match event {
-                        Some(ProxyEvent_x::BinaryChanged) => {
-                            // We don't have server id from event, so this is a stub
-                            // In practice, we'd need to track which watcher belongs to which server
-                            eprintln!("mcp-proxy: binary changed (event received)");
+                        Some(ProxyEvent_x::BinaryChanged(server_id)) => {
+                            eprintln!("mcp-proxy: binary changed for server: {}", server_id);
+                            // Auto-restart the server
+                            if let Some(old_server) = self.registry.remove(&server_id) {
+                                match DownstreamLifecycle_core::restart(old_server).await {
+                                    Ok(new_server) => {
+                                        self.registry.insert(new_server);
+                                        // Send list_changed notification
+                                        let _ = self.upstream
+                                            .send_notification(McpServer_core::tools_list_changed_notification())
+                                            .await;
+                                        eprintln!("mcp-proxy: restarted server: {}", server_id);
+                                    }
+                                    Err(e) => {
+                                        eprintln!("mcp-proxy: failed to restart {}: {}", server_id, e);
+                                    }
+                                }
+                            }
                         }
-                        Some(ProxyEvent_x::ProcessDied) => {
-                            eprintln!("mcp-proxy: downstream process died");
+                        Some(ProxyEvent_x::ProcessDied(server_id)) => {
+                            eprintln!("mcp-proxy: downstream process died: {}", server_id);
                         }
-                        Some(ProxyEvent_x::RespawnDone) => {
-                            eprintln!("mcp-proxy: respawn complete");
+                        Some(ProxyEvent_x::RespawnDone(server_id)) => {
+                            eprintln!("mcp-proxy: respawn complete: {}", server_id);
                         }
                         None => break, // Channel closed
                     }
