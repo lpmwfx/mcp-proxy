@@ -36,3 +36,12 @@ Tokio-laget ejer al MCP-protokol-kompleksitet. Appene er rene.
 Det er faktisk et **service mesh i miniformat** — bare med unix sockets og `list_changed` i stedet for HTTP og service discovery.
 
 Skal `project.md` opdateres til at afspejle denne arkitektur som det *primære* mønster?
+
+
+---
+
+<!-- LARS:START -->
+<a href="https://lpmathiasen.com">
+  <img src="https://carousel.lpmathiasen.com/carousel.svg?slot=2" alt="Lars P. Mathiasen"/>
+</a>
+<!-- LARS:END -->
