@@ -153,3 +153,12 @@ Add to mcp-servers.json:
 ```
 
 Then send JSON-RPC 2.0 requests via stdin, responses on stdout.
+
+
+---
+
+<!-- LARS:START -->
+<a href="https://lpmathiasen.com">
+  <img src="https://carousel.lpmathiasen.com/carousel.svg?slot=2" alt="Lars P. Mathiasen"/>
+</a>
+<!-- LARS:END -->
