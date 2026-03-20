@@ -140,3 +140,12 @@ Proxyen tager binary-stien som første argument. Øvrige args videresendes til d
 - Unix socket transport som alternativ til stdio-relay (bedre for debugging)
 - Health-check ping til downstream for crash-detection uden file-watch
 - Shared proxy-binary der konfigureres via argument (samme binary, mange servers)
+
+
+---
+
+<!-- LARS:START -->
+<a href="https://lpmathiasen.com">
+  <img src="https://carousel.lpmathiasen.com/carousel.svg?slot=2" alt="Lars P. Mathiasen"/>
+</a>
+<!-- LARS:END -->
